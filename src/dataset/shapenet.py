@@ -29,38 +29,6 @@ def load_single_file(path, data_name="data"):
     return np.array(fx[data_name])
 
 
-class ShapeDiffDataset(Dataset):
-    """shapenet partial dataset"""
-
-    def __init__(self, partial_dir, replace_dir='partial_sub_group',
-                 transform=None, val=True):
-        """
-
-        :param partial_dir: string : Directory with all the partial shapes. should contain replce_dir
-        :param transform:
-        :param replace_dir: directory name stating the partial data set, replace with diff/gt/hist_labels accordingly
-        """
-        self.replace_dir = replace_dir
-        self.partial_path = partial_dir  # input path
-        if val:
-            self.partial_path = partial_dir.replace('train', 'val')
-        self.fn_list = os.listdir(self.partial_path)
-
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.fn_list)
-
-    def __getitem__(self, idx):
-        in_path = os.path.join(self.partial_path, self.fn_list[idx])
-        label_path = in_path.replace(self.replace_dir, 'hist_labels')
-
-        input = load_single_file(in_path)
-        hist = load_single_file(label_path, "hist")
-
-        return input, hist
-
-
 ## UTILITY FUNCTIONS TO CREATE AND SAVE DATASETS#
 def data_writer(dirname, n_files=-1):
     """
@@ -149,6 +117,38 @@ def create_partial_from_complete(complete):
     x_partial_tmp = complete[cond]
     idx = rng.choice(s, 1740 - s, replace=False)
     return np.concatenate((x_partial_tmp, x_partial_tmp[idx, :]))
+
+
+class ShapeDiffDataset(Dataset):
+    """shapenet partial dataset"""
+
+    def __init__(self, partial_dir, replace_dir='partial_sub_group',
+                 transform=None, val=True):
+        """
+
+        :param partial_dir: string : Directory with all the partial shapes. should contain replce_dir
+        :param transform:
+        :param replace_dir: directory name stating the partial data set, replace with diff/gt/hist_labels accordingly
+        """
+        self.replace_dir = replace_dir
+        self.partial_path = partial_dir  # input path
+        if val:
+            self.partial_path = partial_dir.replace('train', 'val')
+        self.fn_list = os.listdir(self.partial_path)
+
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.fn_list)
+
+    def __getitem__(self, idx):
+        in_path = os.path.join(self.partial_path, self.fn_list[idx])
+        label_path = in_path.replace(self.replace_dir, 'hist_labels')
+
+        x = load_single_file(in_path)
+        hist = load_single_file(label_path, "hist")
+
+        return x, hist.flatten()
 
 
 if __name__ == '__main__':
