@@ -1,13 +1,15 @@
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
 import mayavi.mlab as mlab
 import numpy as np
 
 
-def plot_hist3d(hist, lower_lim=-1, upper_lim=1, lst=None):
+def plot_hist3d(hist, color=(1.0, 1.0, 1.0), lower_lim=-1, upper_lim=1, lst=None):
     if lst is None:
         lst = [np.linspace(lower_lim, upper_lim, 10) for i in range(3)]
     x, y, z = np.meshgrid(lst[0], lst[1], lst[2])
-    mlab.points3d(x, y, z, hist, mode='cube')
+    mlab.points3d(x, y, z, hist, color=color, mode='cube')
 
 
 def convert_to_np(pc):

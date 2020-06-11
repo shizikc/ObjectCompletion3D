@@ -1,24 +1,29 @@
 import argparse
 import os
 import random
-from enum import Flag
 from pathlib import Path
+import logging
+
 
 import h5py
 import numpy as np
-from mayavi import mlab
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+import torch
 from torch.utils.data import Dataset
 
-from src.dataset.data_utils import plot_pc, plot_hist3d
+# from src.dataset.data_utils import plot_pc
+
+dev = torch.device(
+    "cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+logging.getLogger().setLevel(logging.INFO)
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_path', default='/data', help='data dir [''default: ''../data]')
+args = parser.parse_args()
 
-FLAGS = parser.parse_args()
-
-GT_PATH = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/val/gt/03001627/'
+GT_PATH = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/train/gt/03001627/'
+PARTIAL_PATH = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/val/partial_sub_group/03001627/'
 # PATH = FLAGS.data_path
 LOWER_LIM = -1
 UPPER_LIM = 1
@@ -29,16 +34,14 @@ def load_single_file(path, data_name="data"):
     return np.array(fx[data_name])
 
 
-## UTILITY FUNCTIONS TO CREATE AND SAVE DATASETS#
+# UTILITY FUNCTIONS TO CREATE AND SAVE DATASETS#
 def data_writer(dirname, n_files=-1):
     """
     create a training data set by intersecting the complete object with a hyperplane,
     such that the partial object obtained is 70%-85% of the complete.
     3 folders are written: partial, diff and hist_label using path.
 
-    :param dirname:
-    :param folder_replace: list : which folder in path to replace, default ot gt. the replacement will be
-    "partial", "diff", "hist_labels"
+    :param dirname: gt folder
     :param n_files:
     :param path: complete data path folder
     :return:
@@ -73,6 +76,8 @@ def data_writer(dirname, n_files=-1):
             hf.create_dataset("edges", data=edges)
             hf.create_dataset("hist", data=H)
 
+    logging.info("Done writing files to : % s", dirname)
+
 
 def create_hist_labels(diff_set):
     """
@@ -83,7 +88,8 @@ def create_hist_labels(diff_set):
     edges: list A list of D arrays describing the bin edges for each dimension.
     """
     r = (LOWER_LIM, UPPER_LIM)
-    return np.histogramdd(diff_set, bins=10, range=(r, r, r), density=True)
+    H = np.histogramdd(diff_set, bins=10, range=(r, r, r))
+    return H[0]/diff_set.shape[0], H[1]
 
 
 def create_diff_point_cloud(pc1, pc2):
@@ -135,7 +141,6 @@ class ShapeDiffDataset(Dataset):
         if val:
             self.partial_path = partial_dir.replace('train', 'val')
         self.fn_list = os.listdir(self.partial_path)
-
         self.transform = transform
 
     def __len__(self):
@@ -146,18 +151,19 @@ class ShapeDiffDataset(Dataset):
         label_path = in_path.replace(self.replace_dir, 'hist_labels')
 
         x = load_single_file(in_path)
-        hist = load_single_file(label_path, "hist")
-
-        return x, hist.flatten()
+        h = load_single_file(label_path, "hist")
+        e = load_single_file(label_path, "edges")
+        print(h.shape)
+        return torch.tensor(x).to(dev), torch.tensor(h).flatten().to(dev), torch.tensor(e).flatten().to(dev)
 
 
 if __name__ == '__main__':
-    pass
-    # shapenetDataset = ShapeDiffDataset(PATH)
-    # x_partial, hist  = shapenetDataset[1]
+    # data_writer(args.data_path)
+    shapenetDataset = ShapeDiffDataset(PARTIAL_PATH)
+    # x_partial, hist, edges = shapenetDataset[0]
     # plot_pc(x_partial)
-    # plot_hist3d(hist)
-    # data_writer(GT_PATH, n_files=20)
+    # plot_hist3d(hist.reshape(10, 10, 10), color=(0.1, 0.1, 0.1))
+    # plot_hist3d(hist.reshape(10, 10, 10))
 
 #     x_complete = load_single_file(COMPLETE_PATH)
 #     x_partial = load_single_file(COMPLETE_PATH.replace('gt', 'partial_sub_group'))
@@ -167,10 +173,3 @@ if __name__ == '__main__':
 #     # x_diff = set_diff_point_cloud(x_complete, x_partial)
 #     # H, edges = set_hist_labels(x_diff)
 #     # # plot_pc(x_partial, x_diff)
-
-#     x, y, z = convert_to_np(x_diff)
-#     x1, y1, z1 = convert_to_np(x_partial)
-#     #
-#     mlab.points3d(x, y, z, color=(0.2, 0.4, 0.5), scale_factor=.02)
-#     mlab.points3d(x1, y1, z1, color=(0.9, 0.7, 0.2), scale_factor=.02)
-#     mlab.show()
