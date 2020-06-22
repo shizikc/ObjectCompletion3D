@@ -8,8 +8,7 @@ from mayavi import mlab
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 
-
-from src.dataset.data_utils import plot_pc, plot_hist3d
+from src.dataset.data_utils import plot_pc, plot_hist3d, set_fig, plot_mesh
 from src.dataset.shapenet import ShapeDiffDataset
 from src.pytorch.model import HDM
 
@@ -18,13 +17,13 @@ logging.getLogger().setLevel(logging.INFO)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
-parser.add_argument('--model_path', default='C:/Users/sharon/Documents/Research/ObjectDetection3D/model/model.pt',
+parser.add_argument('--model_path', default='C:/Users/sharon/Documents/Research/ObjectDetection3D/model/model_20.pt',
                     help='Log dir [default: model]')
 parser.add_argument('--train_path', default='C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/train'
                                             '/partial_sub_group/03001627/',
                     help='input data dir, should contain all needed folders [default: data]')
 parser.add_argument('--max_epoch', type=int, default=100, help='Epoch to run [default: 100]')
-parser.add_argument('--bins', type=int, default=10, help='resolution of main cube [default: 10]')
+parser.add_argument('--bins', type=int, default=20, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=0, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=32, help='Batch Size during training [default: 32]')
@@ -34,6 +33,7 @@ args = parser.parse_args()
 ##################
 dev = torch.device(
     "cuda") if torch.cuda.is_available() else torch.device("cpu")
+
 # Prepare the Data
 if args.train:
     train_dataset = ShapeDiffDataset(args.train_path)
@@ -52,9 +52,8 @@ r = lambda: np.random.rand()
 
 
 # Define the Model
-
 def get_model():
-    hdm_model = HDM(10 ** 3).double()
+    hdm_model = HDM(20 ** 3).double()
     return hdm_model, opt.Adam(hdm_model.parameters(), lr=0.0001, betas=(0.9, 0.999))
 
 
@@ -86,22 +85,22 @@ def fit(epochs, model, loss_func, op, train_dl, valid_dl):
     for epoch in range(epochs):
         model.train()
         losses, nums = zip(
-            *[loss_batch(model, x, h, loss_func, op) for x, h, e in train_dl]
+            *[loss_batch(model, x, h.flatten(), loss_func, op) for x, h, e, d in train_dl]
         )
         train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
-        if epoch % 20 == 0:
+        if epoch % 5 == 0:
             logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, train_loss))
 
         model.eval()
         with torch.no_grad():
             losses, nums = zip(
-                *[loss_batch(model, x, h, loss_func) for x, h, e in valid_dl]
+                *[loss_batch(model, x, h.flatten(), loss_func) for x, h, e, d in valid_dl]
             )
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
         # print to console
-        if epoch % 20 == 0:
+        if epoch % 5 == 0:
             logging.info("Epoch : % 3d, Validation error : % 5.5f" % (epoch, val_loss))
 
         writer.add_scalar('epoch_training_loss', train_loss, epoch)
@@ -136,30 +135,49 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(args.model_path, map_location=dev))
         model.eval()
 
-        t = 0.0150
-        rng = np.arange(-1, 1, 2 / args.bins, dtype=float)
+        t = 0.001
+        ivl = 2 / args.bins
 
-        mesh_edge = np.meshgrid(rng, rng, rng)
-        xv, yv, zv = mesh_edge[0].flatten(), mesh_edge[1].flatten(), mesh_edge[2].flatten()
+        for x_partial, hist, edges, x_diff in val_loader:
+            # print(x.shape) torch.Size([1, 1740, 3])
+            # print(h.shape) torch.Size([1, 10, 10, 10])
+            # print(d.shape) torch.Size([1, 325, 3])
+            # print(edges) # torch.Size([1, 3, 11])
+            pred = model(x_partial)  # torch.Size([1, 10**3])
+            pred_round = torch.relu(pred[0] - t)
 
-        for x, h, e in val_loader:
-            pred = model(x)
-            # cube indicator prediction
-            pred_ind = F.relu(pred - t); h_ind = F.relu(h); acc_ind = (pred_ind == h_ind).float()
-            print(pred_ind.shape)
-            logging.info("Indicator Accuracy % f", acc_ind[0].mean())
+            # pred_round
 
-            # continues uniform distribution
-            err = torch.abs(pred-h)
-            logging.info("Continues Accuracy % f", 1-err[0].mean())
+            # uniform sample from bounding box
+
             break
 
-            # plot partial and prediction
-            # xv*h_ind, yv*h_ind, zv*h_ind
-            plot_pc(x)
+            # cube indicator prediction
+            pred_ind = ((pred[0] - t) > 0)  # torch.Size([1000])
 
-            # f = mlab.figure()
-            # plot_hist3d(h[0].reshape(10, 10, 10))
-            # plot_hist3d(pred[0].detach().reshape(10, 10, 10), color=(r(), r(), r()))
-            # mlab.points3d(x, color=(r(), r(), r()))
-            # mlab.show()
+            h_ind = (hist[0] > 0).flatten()  # torch.Size([1000])
+
+            ## Accuracy mesurment
+            acc_ind = (pred_ind == h_ind).float()  # torch.Size([1000])
+            logging.info("Indicator Accuracy % f", acc_ind.mean())
+
+            # continues uniform distribution
+            err = torch.abs(pred - hist[0].flatten())  # torch.Size([1, 1000])
+
+            logging.info("Continues Accuracy % f", 1 - err[0].mean())
+
+            mesh = np.meshgrid(edges[0][0][0:args.bins], edges[0][1][0:args.bins], edges[0][2][0:args.bins])
+            h_ind = h_ind.reshape(args.bins, args.bins, args.bins)
+            pred_ind = pred_ind.reshape(args.bins, args.bins, args.bins)
+
+            ax = set_fig(edges[0])
+
+            # plot_mesh(ax, mesh[1][idx_h], mesh[0][idx_h], mesh[2][idx_h], ivl=ivl, col="red") #gt box
+
+            plot_mesh(ax, mesh[0][pred_ind], mesh[1][pred_ind], mesh[2][pred_ind], ivl=ivl, col="red")  # gt box
+            ax.scatter(x_partial[0][:, 0], x_partial[0][:, 1], x_partial[0][:, 2], s=4, color="grey")  # gt diff
+            ax.scatter(x_diff[0][:, 0], x_diff[0][:, 1], x_diff[0][:, 2], s=4, color="black")  # gt diff
+
+            # ax.scatter(mesh[0][pred_ind], mesh[1][pred_ind], mesh[2][pred_ind], s=7, color="red")  # gt diff
+            # ax.scatter( mesh[1][h_ind], mesh[0][h_ind], mesh[2][h_ind], s=4, col or="red")  # gt diff
+            break

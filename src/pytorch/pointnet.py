@@ -178,7 +178,8 @@ class PointNetDenseCls(nn.Module):
         x = F.relu(self.bn3(self.conv3(x)))
         x = self.conv4(x)
         x = x.transpose(2, 1).contiguous()
-        x = F.log_softmax(x.view(-1, self.k), dim=-1)
+        # x = F.log_softmax(x.view(-1, self.k), dim=-1)
+        x = torch.softmax(x.view(-1, self.k), dim=-1)
         x = x.view(batchsize, n_pts, self.k)
         return x, trans, trans_feat
 
@@ -208,15 +209,15 @@ if __name__ == '__main__':
     #
     pointfeat = PointNetfeat(global_feat=False)
     out, _, _ = pointfeat(sim_data)
-    print('global feat', out.size())
+    print('global feat', out.sum())
     # #
     # pointfeat = PointNetfeat(global_feat=False)
     # out, _, _ = pointfeat(sim_data)
     # print('point feat', out.size())
 
-    # cls = PointNetCls(k = 5)
-    # out, _, _ = cls(sim_data)
-    # print('class', out.size())
+    cls = PointNetCls(k = 5)
+    out, _, _ = cls(sim_data)
+    print('class', out.size())
     #
     # seg = PointNetDenseCls(k = 3)
     # out, _, _ = seg(sim_data)

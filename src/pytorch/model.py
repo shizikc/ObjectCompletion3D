@@ -48,14 +48,15 @@ class ResnetBlockFC(nn.Module):
         return x + dx
 
 
-class Encoder(nn.Module):
+class ResNetBlocks(nn.Module):
     """
     PointNet Encoder
 
     """
 
     def __init__(self):
-        super(Encoder, self).__init__()
+        super(ResNetBlocks, self).__init__()
+
         self.feat = PointNetfeat(global_feat=False)
 
         self.conv1 = torch.nn.Conv1d(1088, 1024, 1)
@@ -96,14 +97,19 @@ class HDM(Module):
 
     def forward(self, x):
         x = x.transpose(2, 1)
-        return torch.sigmoid(self.cls(x)[0])
+        x = self.cls(x)[0]  # torch.Size([bs, 8000])
+        x = torch.sigmoid(x)
+        return x
 
 
 if __name__ == '__main__':
     bs = 10
     n_points = 1740
     sim_data = Variable(torch.rand(bs, n_points, 3))
+    print(sim_data.shape)
 
-    cls = PointNetCls(k=10 ** 3)
-    out, _, _ = cls(sim_data)
-    print('class', out.size())
+    cls = HDM(20 ** 3)
+    out = cls(sim_data)
+    print('class', out.size())  # class torch.Size([10, 20**3])
+    print('class', out[0].sum())  # class torch.Size([10, 20**3])
+
