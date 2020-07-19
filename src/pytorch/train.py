@@ -147,19 +147,22 @@ if __name__ == '__main__':
             pred_round = torch.relu(pred[0] - t)
 
             # pred_round
-
             # uniform sample from bounding box
-
-            break
-
             # cube indicator prediction
             pred_ind = ((pred[0] - t) > 0)  # torch.Size([1000])
+            print("positive pred:", pred_ind.int().sum())
 
             h_ind = (hist[0] > 0).flatten()  # torch.Size([1000])
+            d = h_ind.int().sum()
+            print("positive gt:", d)
 
             ## Accuracy mesurment
-            acc_ind = (pred_ind == h_ind).float()  # torch.Size([1000])
-            logging.info("Indicator Accuracy % f", acc_ind.mean())
+            cond1 = torch.tensor(h_ind == True)
+            cond2 = torch.tensor(pred_ind == h_ind)
+            acc_ind = cond1 & cond2 # torch.Size([1000])
+
+            logging.info("Indicator True Positive % f", acc_ind.float().sum()/d )
+            logging.info("Indicator Accuracy % f", acc_ind.float().sum())
 
             # continues uniform distribution
             err = torch.abs(pred - hist[0].flatten())  # torch.Size([1, 1000])

@@ -124,7 +124,6 @@ class PointNetfeat(nn.Module):
         x = torch.max(x, 2, keepdim=True)[0]
         x = x.view(-1, 1024)
 
-
         if self.global_feat:
             return x, trans, trans_feat
         else:
@@ -147,11 +146,12 @@ class PointNetCls(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        x, trans, trans_feat = self.feat(x)
+        x, _, _ = self.feat(x)  # torch.Size([bs, 1024])
         x = F.relu(self.bn1(self.fc1(x)))
         x = F.relu(self.bn2(self.dropout(self.fc2(x))))
         x = self.fc3(x)
-        return F.log_softmax(x, dim=1), trans, trans_feat
+
+        return F.log_softmax(x, dim=1)
 
 
 class PointNetDenseCls(nn.Module):
@@ -169,19 +169,15 @@ class PointNetDenseCls(nn.Module):
         self.bn3 = nn.BatchNorm1d(128)
 
     def forward(self, x):
-        x = x.transpose(-1,2)
-        batchsize = x.size()[0]
-        n_pts = x.size()[2]
-        x, trans, trans_feat = self.feat(x)
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
-        x = self.conv4(x)
-        x = x.transpose(2, 1).contiguous()
-        # x = F.log_softmax(x.view(-1, self.k), dim=-1)
-        x = torch.softmax(x.view(-1, self.k), dim=-1)
-        x = x.view(batchsize, n_pts, self.k)
-        return x, trans, trans_feat
+        x = x.transpose(-1, 2)
+        x, _, _ = self.feat(x) # torch.Size([bs, 1088, num_points])
+        x = F.relu(self.bn1(self.conv1(x))) # : torch.Size([bs, 512, num_points])
+        x = F.relu(self.bn2(self.conv2(x))) #torch.Size([bs, 256, num_points])
+        x = F.relu(self.bn3(self.conv3(x))) # torch.Size([bs, 128, num_points])
+        x = self.conv4(x) # torch.Size([bs, k, points])
+        # x = x.transpose(2, 1).contiguous()  # torch.Size([bs, num_points, k])
+        x = x.contiguous()  # torch.Size([bs, k, points])
+        return x
 
 
 def feature_transform_regularizer(trans):
@@ -197,8 +193,10 @@ def feature_transform_regularizer(trans):
 if __name__ == '__main__':
     sim_data = Variable(torch.rand(32, 3, 2500))
     trans = STN3d()
-    out = trans(sim_data)
-    print('stn', out.size())
+    #
+    # out = trans(sim_data)
+    # print('stn', out.size())
+
     # print('loss', feature_transform_regularizer(out))
 
     # sim_data_64d = Variable(torch.rand(32, 64, 2500))
@@ -207,18 +205,18 @@ if __name__ == '__main__':
     # print('stn64d', out.size())
     # # print('loss', feature_transform_regularizer(out))
     #
-    pointfeat = PointNetfeat(global_feat=False)
-    out, _, _ = pointfeat(sim_data)
-    print('global feat', out.sum())
-    # #
+    # pointfeat = PointNetfeat(global_feat=False)
+    # out, _, _ = pointfeat(sim_data)
+    # print('global feat', out.sum())
+    #
     # pointfeat = PointNetfeat(global_feat=False)
     # out, _, _ = pointfeat(sim_data)
     # print('point feat', out.size())
 
-    cls = PointNetCls(k = 5)
-    out, _, _ = cls(sim_data)
-    print('class', out.size())
-    #
-    # seg = PointNetDenseCls(k = 3)
-    # out, _, _ = seg(sim_data)
-    # print('seg', out.size())
+    cls = PointNetCls(k=100)
+    out = cls(sim_data)
+    print('class', out.size())  # torch.Size([bs, k])
+
+    seg = PointNetDenseCls(k=50)
+    out = seg(sim_data)
+    print('seg', out.size())  # torch.Size([bs, k, num_points])
