@@ -7,7 +7,6 @@ import torch.nn.functional as F
 # from src.chamfer_distance import ChamferDistance
 from src.pytorch.pointnet import PointNetDenseCls, PointNetCls
 
-
 class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
@@ -47,6 +46,8 @@ class Encoder(nn.Module):
         """
         h1 = self.dens(x)
         return F.softmax(self.cls_prob(h1)), self.fc_mu(h1), self.fc_mat(h1)
+
+
 
 
 class VAELoss(nn.Module):
@@ -92,14 +93,15 @@ class VariationalAutoEncoder(nn.Module):
         :return:
         """
         probs, mu, sigma = self.encoder(x)
-        mask = probs > self.threshold  # in shape probs
 
         z = self.reparameterize(mu, sigma)
 
         # TODO: change this to fit any batch size
-        x = z[0][probs[0] > self.threshold]  # torch.Size([high_prob_cubes, 100, 3])
-        x = x.view(1, -1, 3).transpose(2, 1) # torch.Size([1, high_prob_cubes * 100, 3])
-        return self.decoder(x), mu, sigma
+        mask = probs[0] > self.threshold  # in shape probs
+        x = z[0][mask]  # torch.Size([high_prob_cubes, 100, 3])
+
+        x = x.view(1, -1, 3).transpose(2, 1)  # torch.Size([1, high_prob_cubes * 100, 3])
+        return self.decoder(x), probs, mu, sigma
 
     def reparameterize(self, mu, sigma):
         """
@@ -113,12 +115,12 @@ class VariationalAutoEncoder(nn.Module):
         :return: Float tensor  in torch.Size([bs, num_samples, 3])
         """
 
-        vector_size = (mu.shape[0], self.num_cubes, self.num_sample_cube , 3)
+        vector_size = (mu.shape[0], self.num_cubes, self.num_sample_cube, 3)
 
         # sample random standard
         eps = Variable(torch.randn(vector_size))
-        eps += mu.view(mu.shape[0], -1, 1, 3)
         eps *= sigma.view(sigma.shape[0], -1, 1, 3)
+        eps += mu.view(mu.shape[0], -1, 1, 3)
 
         return eps
 
@@ -143,7 +145,6 @@ if __name__ == '__main__':
     z = vae.reparameterize(mu, scale)
     print("params ", z.shape)  # torch.Size([1, 1000, 100, 3])
 
-
     ###########################################
 
     out_data = Variable(torch.rand(bs, 3, 500))
@@ -153,5 +154,5 @@ if __name__ == '__main__':
     print("out", out.shape)  # torch.rand(1, 500, 3)
 
     ###########################################
-    vae_out, mu_out, sigma_out = vae(in_data)
+    vae_out, probs, mu_out, sigma_out = vae(in_data)
     print("full_out ", vae_out.shape)  # torch.Size([1, num_samples, 3])

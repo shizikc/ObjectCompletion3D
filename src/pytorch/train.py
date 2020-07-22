@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 from src.dataset.data_utils import plot_pc, plot_hist3d, set_fig, plot_mesh
 from src.dataset.shapenet import ShapeDiffDataset
-from src.pytorch.model import HDM
+from .vae import VariationalAutoEncoder, VAELoss
 
 # 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/train/partial_sub_group/03001627/'
 logging.getLogger().setLevel(logging.INFO)
@@ -43,8 +43,8 @@ if args.train:
 val_path = args.train_path.replace('train', 'val')
 val_dataset = ShapeDiffDataset(val_path)
 val_loader = torch.utils.data.DataLoader(val_dataset, 1, shuffle=True)
-# Binary segmentation function
-criterion = torch.nn.BCELoss()
+
+criterion = VAELoss()
 
 writer = SummaryWriter(args.log_dir)
 
@@ -53,22 +53,26 @@ r = lambda: np.random.rand()
 
 # Define the Model
 def get_model():
-    hdm_model = HDM(20 ** 3).double()
-    return hdm_model, opt.Adam(hdm_model.parameters(), lr=0.0001, betas=(0.9, 0.999))
+    vae = VariationalAutoEncoder(num_cubes=10 ** 3, threshold=0.001).double()
+    return vae, opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
 
 
-def loss_batch(model, part_in, gt_hist, loss_func, opt=None):
+def loss_batch(model, input, prob_target, x_diff_target, loss_func, opt=None):
     """
 
-    :param gt_hist: in (batch_size, KxKxK, 1)
-    :param part_in:
     :param model:
-    :param loss_func: should expect pred, and dist
+    :param input:
+    :param prob_pred:
+    :param prob_target:
+    :param x_diff_pred:
+    :param x_diff_target:
+    :param loss_func:
     :param opt:
     :return:
     """
-    p = model(part_in)  # in (batch_size, KxKxK, 1)
-    loss = loss_func(p, gt_hist)  # scalar
+    x_diff_pred, prob_pred, mu_out, sigma_out = model(input)
+    #
+    loss = loss_func(prob_pred, prob_target, x_diff_pred, x_diff_target)  # scalar
 
     if opt is not None:
         # training
@@ -76,16 +80,20 @@ def loss_batch(model, part_in, gt_hist, loss_func, opt=None):
         opt.step()
         opt.zero_grad()
 
-    return loss.item(), part_in.shape[0]
+    return loss.item(), input.shape[0]
 
 
 # Train the Model
 def fit(epochs, model, loss_func, op, train_dl, valid_dl):
+
     min_loss = 10000000
+
     for epoch in range(epochs):
         model.train()
+        # model, input, prob_target, x_diff_target, loss_func, opt=None
+        # x_partial, hist, edges, x_diff
         losses, nums = zip(
-            *[loss_batch(model, x, h.flatten(), loss_func, op) for x, h, e, d in train_dl]
+            *[loss_batch(model, x, h.flatten(), d, loss_func, op) for x, h, e, d in train_dl]
         )
         train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
@@ -95,7 +103,7 @@ def fit(epochs, model, loss_func, op, train_dl, valid_dl):
         model.eval()
         with torch.no_grad():
             losses, nums = zip(
-                *[loss_batch(model, x, h.flatten(), loss_func) for x, h, e, d in valid_dl]
+                *[loss_batch(model, x, h.flatten(), d, loss_func) for x, h, e, d in valid_dl]
             )
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
