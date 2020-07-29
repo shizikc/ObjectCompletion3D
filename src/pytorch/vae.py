@@ -7,6 +7,7 @@ import torch.nn.functional as F
 # from src.chamfer_distance import ChamferDistance
 from src.pytorch.pointnet import PointNetDenseCls, PointNetCls
 
+
 class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
@@ -45,9 +46,7 @@ class Encoder(nn.Module):
           sigma in torch.Size([bs, 9*num_cubes])
         """
         h1 = self.dens(x)
-        return F.softmax(self.cls_prob(h1)), self.fc_mu(h1), self.fc_mat(h1)
-
-
+        return F.softmax(self.cls_prob(h1), dim=1), self.fc_mu(h1), self.fc_mat(h1)
 
 
 class VAELoss(nn.Module):
@@ -79,11 +78,18 @@ class VAELoss(nn.Module):
 class VariationalAutoEncoder(nn.Module):
 
     def __init__(self, num_cubes, threshold, num_sample_cube=20):
+        """
+
+        :param num_cubes: cube resolution float
+        :param threshold: minimum probability to consider as part of the cover of the diff region
+        :param num_sample_cube: how many samples to sample per cube
+        """
         super(VariationalAutoEncoder, self).__init__()
         self.num_cubes = num_cubes
         self.threshold = threshold
         self.num_sample_cube = num_sample_cube
-        self.encoder = Encoder(num_cubes=10 ** 3)
+
+        self.encoder = Encoder(num_cubes=num_cubes)
         self.decoder = Decoder()
 
     def forward(self, x):
@@ -100,8 +106,8 @@ class VariationalAutoEncoder(nn.Module):
         mask = probs[0] > self.threshold  # in shape probs
         x = z[0][mask]  # torch.Size([high_prob_cubes, 100, 3])
 
-        x = x.view(1, -1, 3).transpose(2, 1)  # torch.Size([1, high_prob_cubes * 100, 3])
-        return self.decoder(x), probs, mu, sigma
+        x = x.view(1, -1, 3)#.transpose(2, 1)  # torch.Size([1, high_prob_cubes * 100, 3])
+        return x, probs, mu, sigma
 
     def reparameterize(self, mu, sigma):
         """
@@ -127,11 +133,12 @@ class VariationalAutoEncoder(nn.Module):
 
 if __name__ == '__main__':
     bs = 1
-    in_data = Variable(torch.rand(bs, 3, 250))
+    num_points = 250
+    in_data = Variable(torch.rand(bs, 3, num_points))
 
     ###########################################
 
-    encoder = Encoder(num_cubes=10 ** 3)
+    encoder = Encoder(num_cubes=20 ** 3)
     probs, mu, scale = encoder(in_data)
 
     print('probs: ', probs.size())  # prob torch.Size([bs, 1000]) view(prob.shape[0], -1, 3)
@@ -140,17 +147,17 @@ if __name__ == '__main__':
 
     ###########################################
 
-    vae = VariationalAutoEncoder(num_cubes=10 ** 3, threshold=0.001)
+    vae = VariationalAutoEncoder(num_cubes=20 ** 3, threshold=0.001)
 
     z = vae.reparameterize(mu, scale)
     print("params ", z.shape)  # torch.Size([1, 1000, 100, 3])
 
     ###########################################
 
-    out_data = Variable(torch.rand(bs, 3, 500))
+    latent_data = Variable(torch.rand(bs, 3, 500))
 
     decoder = Decoder()
-    out = decoder(out_data)
+    out = decoder(latent_data)
     print("out", out.shape)  # torch.rand(1, 500, 3)
 
     ###########################################

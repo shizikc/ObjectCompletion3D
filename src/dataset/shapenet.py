@@ -3,14 +3,12 @@ import os
 import random
 from pathlib import Path
 import logging
-import matplotlib.pyplot as plt
 import h5py
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-# from src.dataset.data_utils import plot_pc
-# from src.dataset.data_utils import plot_pc, plot_mesh, set_fig
+from src.dataset.data_utils import plot_pc
 
 dev = torch.device(
     "cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -22,8 +20,7 @@ parser.add_argument('--data_path', default='/data', help='data dir [''default: '
 parser.add_argument('--bins', default=20, help='histogram resolution')
 args = parser.parse_args()
 
-GT_PATH = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/val/gt/03001627/'
-PARTIAL_PATH = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/val/partial_sub_group/03001627/'
+
 # PATH = FLAGS.data_path
 LOWER_LIM = -1
 UPPER_LIM = 1
@@ -132,20 +129,27 @@ def create_partial_from_complete(complete):
 class ShapeDiffDataset(Dataset):
     """shapenet partial dataset"""
 
-    def __init__(self, partial_dir, replace_dir='partial_sub_group',
-                 transform=None, val=True):
+    def __init__(self, root_path, object_id, val=False):
         """
 
-        :param partial_dir: string : Directory with all the partial shapes. should contain replce_dir
-        :param transform:
-        :param replace_dir: directory name stating the partial data set, replace with diff/gt/hist_labels accordingly
+        :param root_path: string : Root directory of structure: root
+                                                                    diff
+                                                                    gt
+                                                                    hist_labels
+                                                                    partial_sub_group
+                                                                            object_id
+                                                                                files.h5
+        :param object_id:
         """
-        self.replace_dir  = replace_dir
-        self.partial_path = partial_dir  # input path
+        self.root_path = root_path
         if val:
-            self.partial_path = partial_dir.replace('train', 'val')
+            self.root_path += 'val'
+        else:
+            self.root_path += 'train'
+
+        self.replace_dir = 'partial_sub_group'
+        self.partial_path = os.path.join(self.root_path, self.replace_dir, object_id) + "/"
         self.fn_list = os.listdir(self.partial_path)
-        self.transform = transform
 
     def __len__(self):
         return len(self.fn_list)
@@ -165,13 +169,20 @@ class ShapeDiffDataset(Dataset):
 
 
 if __name__ == '__main__':
+    train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/'
+    obj_id = '03001627'
+
+    shapenet = ShapeDiffDataset(train_path, obj_id)
+    x_partial, hist, edges, x_diff = shapenet[0]
+    plot_pc([x_partial, x_diff], colors=("black", "red"))
+
     # x = np.random.rand(25) * 10
     # y = np.random.rand(25) * 10
     # r = (0, 10)
     # h, e = np.histogramdd((x, y), bins=10, range=(r, r))
     # mesh = np.meshgrid(e[0][0:10, ], e[1][0:10, ])
     # h_ind = h > 0
-    #
+
     # fig, ax = plt.subplots(1, figsize=(8, 6))
     # grid_x_ticks_major = np.arange(0, 11, 1)
     # grid_y_ticks_major = np.arange(0, 11, 1)
@@ -182,18 +193,12 @@ if __name__ == '__main__':
     # ax.scatter(mesh[0][h_ind.T] , mesh[1][h_ind.T])
     # plt.grid(b=True, which='both')
     # print(h.T)
-
-    data_writer(GT_PATH)
-    data_writer(GT_PATH.replace("val", "train"))
+    #
+    # data_writer(GT_PATH)
+    # data_writer(GT_PATH.replace("val", "train"))
     # data_writer(args.data_path)
 
     # # expend
-    # shapenetDataset = ShapeDiffDataset(PARTIAL_PATH)
-    # x_partial, hist, edges, x_diff = shapenetDataset[0]
-    # print(hist.shape)
-    # # plot_pc([x_partial], colors=("red","black"))
-    # h_ind = hist > 0
-    #
     # mesh = np.meshgrid(edges[0][0:10], edges[1][0:10], edges[2][0:10])
     #
     # ax = set_fig(edges)
