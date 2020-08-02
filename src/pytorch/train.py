@@ -9,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from src.dataset.data_utils import set_fig, plot_mesh
 from src.dataset.shapenet import ShapeDiffDataset
 from src.pytorch.vae import VariationalAutoEncoder, VAELoss
+from src.dataset.data_utils import plot_pc
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                     level=logging.INFO,
@@ -24,11 +25,12 @@ parser.add_argument('--train', type=int, default=1, help='1 if training, 0 other
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 32]')
 parser.add_argument('--object_id', default='03001627', help='object id = sub folder name [default: 03001627 (chair)]')
-parser.add_argument('--thresold', default=0.01, help='cube probability threshold')
+parser.add_argument('--threshold', default=0.01, help='cube probability threshold')
 args = parser.parse_args()
 
 # Model Life-Cycle
 ##################
+
 dev = torch.device(
     "cuda") if torch.cuda.is_available() else torch.device("cpu")
 
@@ -40,6 +42,16 @@ if args.train:
 if args.eval:
     val_dataset = ShapeDiffDataset(args.train_path, args.object_id, val=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, 1, shuffle=True)
+
+for x, h, e, d in train_loader:
+    break
+x0, y0, z0 = e[0][0][0:len(e[0][0]) - 1], e[0][1][0:len(e[0][1]) - 1], e[0][2][0:len(e[0][2]) - 1]
+xv0, yv0, zv0 = np.meshgrid(x0, y0, z0)  # each is (20,20,20)
+xyzv0 = torch.stack((torch.tensor(xv0), torch.tensor(yv0), torch.tensor(zv0)), dim=3)
+
+x1, y1, z1 = e[0][0][1:len(e[0][0])], e[0][1][1:len(e[0][1])], e[0][2][1:len(e[0][2])]
+xv1, yv1, zv1 = np.meshgrid(x1, y1, z1)  # each is (20,20,20)
+xyzv1 = torch.stack((torch.tensor(xv1), torch.tensor(yv1), torch.tensor(zv1)), dim=3)
 
 criterion = VAELoss()
 
@@ -54,7 +66,7 @@ def get_model():
     return vae, opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
 
 
-def loss_batch(model, input, prob_target, x_diff_target, loss_func, opt=None):
+def loss_batch(model, input, prob_target, x_diff_target, loss_func, opt=None, plot=False, n_bins=None):
     """
 
     :param model:
@@ -73,6 +85,11 @@ def loss_batch(model, input, prob_target, x_diff_target, loss_func, opt=None):
 
     x_diff_pred, prob_pred, mu_out, sigma_out = model(input)
     #
+    # plot distribution params
+    if plot:
+        bounderies = torch.max(torch.min(mu_out.view(n_bins, n_bins, n_bins, 3), xyzv0.float()), xyzv1.float())
+        plot_pc([bounderies.view(-1, 3).detach().numpy()], colors=("green"))
+
     loss = loss_func(prob_pred, prob_target.reshape((prob_pred.shape[0], prob_target.shape[0])),
                      x_diff_pred, x_diff_target)  # scalar
 
@@ -95,13 +112,15 @@ def fit(epochs, model, loss_func, op, train_dl, valid_dl):
         # model, input, prob_target, x_diff_target, loss_func, opt=None
         # x_partial, hist, edges, x_diff
         losses, nums = zip(
-            *[loss_batch(model, x.transpose(2, 1), h.flatten(), d, loss_func, op) for x, h, e, d in train_dl]
+            *[loss_batch(model, x.transpose(2, 1), h.flatten(), d, loss_func, op,
+                         plot=epoch % 5 == 0, n_bins=e.shape[2]-1 ) for x, h, e, d in train_dl]
         )
         train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
         if epoch % 5 == 0:
             logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, train_loss))
-            # plot distribution params
+
+
 
         model.eval()
         with torch.no_grad():

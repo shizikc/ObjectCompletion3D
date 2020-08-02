@@ -165,7 +165,7 @@ class ShapeDiffDataset(Dataset):
         d = load_single_file(diff_path)
 
         return torch.tensor(x).to(dev), torch.tensor(h).to(dev), \
-               torch.tensor(e).to(dev), torch.tensor(d).to(dev), idx
+               torch.tensor(e).to(dev), torch.tensor(d).to(dev)
 
 
 if __name__ == '__main__':

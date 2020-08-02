@@ -1,12 +1,13 @@
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
+import numpy as np
 
 import torch.nn.functional as F
 
-# from src.chamfer_distance import ChamferDistance
 from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch
 from src.dataset.data_utils import plot_pc
+from src.dataset.shapenet import ShapeDiffDataset
 from src.pytorch.pointnet import PointNetDenseCls, PointNetCls
 
 
@@ -87,10 +88,21 @@ class VariationalAutoEncoder(nn.Module):
         """
         super(VariationalAutoEncoder, self).__init__()
         self.num_cubes = num_cubes
+        self.n_bins = round(num_cubes ** (1. / 3.))
         self.threshold = threshold
         self.num_sample_cube = num_sample_cube
 
         self.encoder = Encoder(num_cubes=num_cubes)
+
+        e0 = torch.arange(-1, 1, 2 / self.n_bins)
+        e1 = e0 + 2 / self.n_bins
+
+        xv0, yv0, zv0 = np.meshgrid(e0, e0, e0)  # each is (20,20,20)
+        self.lower_bound = torch.stack((torch.tensor(xv0), torch.tensor(yv0), torch.tensor(zv0)), dim=3)
+
+        xv1, yv1, zv1 = np.meshgrid(e1, e1, e1)  # each is (20,20,20)
+        self.upper_bound = torch.stack((torch.tensor(xv1), torch.tensor(yv1), torch.tensor(zv1)), dim=3)
+
         # self.decoder = Decoder()
 
     # def _mapping_to_target_range(self, x, target_min=-1, target_max=1):
@@ -105,8 +117,10 @@ class VariationalAutoEncoder(nn.Module):
         :return:
         """
         probs, mu, sigma = self.encoder(x)
-        #TODO: ensure each mu is inside the cube?
-        mu = torch.tanh(mu) # mu[i] in [-1,1]
+        # TODO: ensure each mu is inside the cube?
+        mu = torch.max(torch.min(mu.view(self.n_bins, self.n_bins, self.n_bins, 3), self.lower_bound.float()),
+                       self.upper_bound.float()).view(1,-1)
+        # mu = torch.tanh(mu) # mu[i] in [-1,1]
 
         z = self.reparameterize(mu, sigma)
 
@@ -146,7 +160,7 @@ if __name__ == '__main__':
 
     ###########################################
 
-    encoder = Encoder(num_cubes=10 ** 3)
+    encoder = Encoder(num_cubes=20 ** 3)
     probs, mu, scale = encoder(in_data)
 
     print('probs: ', probs.size())  # prob torch.Size([bs, 1000]) view(prob.shape[0], -1, 3)
@@ -155,7 +169,7 @@ if __name__ == '__main__':
 
     ###########################################
 
-    vae = VariationalAutoEncoder(num_cubes=10 ** 3, threshold=0.001)
+    vae = VariationalAutoEncoder(num_cubes=20 ** 3, threshold=0.0001)
 
     z = vae.reparameterize(mu, scale)
     print("params ", z.shape)  # torch.Size([1, 1000, 100, 3])
