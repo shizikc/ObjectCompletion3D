@@ -91,7 +91,12 @@ class VariationalAutoEncoder(nn.Module):
         self.num_sample_cube = num_sample_cube
 
         self.encoder = Encoder(num_cubes=num_cubes)
-        self.decoder = Decoder()
+        # self.decoder = Decoder()
+
+    # def _mapping_to_target_range(self, x, target_min=-1, target_max=1):
+    #     x02 = F.tanh(x) + 1  # x in range(0,2)
+    #     scale = (target_max - target_min) / 2.
+    #     return x02 * scale + target_min
 
     def forward(self, x):
         """
@@ -100,6 +105,8 @@ class VariationalAutoEncoder(nn.Module):
         :return:
         """
         probs, mu, sigma = self.encoder(x)
+        #TODO: ensure each mu is inside the cube?
+        mu = torch.tanh(mu) # mu[i] in [-1,1]
 
         z = self.reparameterize(mu, sigma)
 
@@ -167,4 +174,4 @@ if __name__ == '__main__':
 
     #### plot centers ####
 
-    plot_pc([mu[0].reshape(-1, 3).detach().numpy()], colors=("black"))
+    plot_pc([mu_out[0].reshape(-1, 3).detach().numpy()], colors=("black"))

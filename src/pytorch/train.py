@@ -19,11 +19,12 @@ parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--model_path', default='C:/Users/sharon/Documents/Research/ObjectDetection3D/model/model.pt')
 parser.add_argument('--train_path', default='C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/')
 parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
-parser.add_argument('--bins', type=int, default=20**3, help='resolution of main cube [default: 10]')
+parser.add_argument('--bins', type=int, default=20 ** 3, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 32]')
 parser.add_argument('--object_id', default='03001627', help='object id = sub folder name [default: 03001627 (chair)]')
+parser.add_argument('--thresold', default=0.01, help='cube probability threshold')
 args = parser.parse_args()
 
 # Model Life-Cycle
@@ -49,7 +50,7 @@ r = lambda: np.random.rand()
 
 # Define the Model
 def get_model():
-    vae = VariationalAutoEncoder(num_cubes=args.bins, threshold=0.001).double()
+    vae = VariationalAutoEncoder(num_cubes=args.bins, threshold=args.threshold).double()
     return vae, opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
 
 
@@ -100,8 +101,7 @@ def fit(epochs, model, loss_func, op, train_dl, valid_dl):
 
         if epoch % 5 == 0:
             logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, train_loss))
-            # plot distribution
-
+            # plot distribution params
 
         model.eval()
         with torch.no_grad():
@@ -147,7 +147,6 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(args.model_path, map_location=dev))
         model.eval()
 
-        t = 0.001
         ivl = 2 / args.bins
 
         for x_partial, hist, edges, x_diff in val_loader:
@@ -155,13 +154,11 @@ if __name__ == '__main__':
             # print(h.shape) torch.Size([1, 10, 10, 10])
             # print(d.shape) torch.Size([1, 325, 3])
             # print(edges) # torch.Size([1, 3, 11])
-            pred = model(x_partial)  # torch.Size([1, 10**3])
-            pred_round = torch.relu(pred[0] - t)
-
-            # pred_round
+            pred, probs, mu_out, sigma_out = model(x_partial)  #
+            pred_round = torch.relu(pred[0] - args.threshold)
             # uniform sample from bounding box
             # cube indicator prediction
-            pred_ind = ((pred[0] - t) > 0)  # torch.Size([1000])
+            pred_ind = ((pred[0] - args.threshold) > 0)  # torch.Size([1000])
             print("positive pred:", pred_ind.int().sum())
 
             h_ind = (hist[0] > 0).flatten()  # torch.Size([1000])
