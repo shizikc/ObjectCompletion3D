@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # from src.chamfer_distance import ChamferDistance
+from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch
+from src.dataset.data_utils import plot_pc
 from src.pytorch.pointnet import PointNetDenseCls, PointNetCls
 
 
@@ -62,17 +64,16 @@ class VAELoss(nn.Module):
         :param prob_pred: in shape (bs, K) where K- number of cubes
         :param prob_target: in shape (bs, K) where K- number of cubes
         :param x_diff_pred: predicted completion: in shape (bs, num_points (N), 3)
-        :param x_diff_target: ground trouth completion:  in shape (bs, num_points (M), 3)
+        :param x_diff_target: ground trough completion:  in shape (bs, num_points (M), 3)
         :return: scalar
         """
 
         BCE = self.bce_loss(prob_pred, prob_target)
 
         # points and points_reconstructed are n_points x 3 matrices
-        # dist1, dist2 = self.chamfer_dist(x_complete, points_reconstructed)
-        # CD = (torch.mean(dist1)) + (torch.mean(dist2))
+        CD = chamfer_distance_with_batch(x_diff_pred, x_diff_target, False)
 
-        return BCE  # + CD
+        return BCE + CD
 
 
 class VariationalAutoEncoder(nn.Module):
@@ -106,7 +107,7 @@ class VariationalAutoEncoder(nn.Module):
         mask = probs[0] > self.threshold  # in shape probs
         x = z[0][mask]  # torch.Size([high_prob_cubes, 100, 3])
 
-        x = x.view(1, -1, 3)#.transpose(2, 1)  # torch.Size([1, high_prob_cubes * 100, 3])
+        x = x.view(1, -1, 3)  # .transpose(2, 1)  # torch.Size([1, high_prob_cubes * 100, 3])
         return x, probs, mu, sigma
 
     def reparameterize(self, mu, sigma):
@@ -138,7 +139,7 @@ if __name__ == '__main__':
 
     ###########################################
 
-    encoder = Encoder(num_cubes=20 ** 3)
+    encoder = Encoder(num_cubes=10 ** 3)
     probs, mu, scale = encoder(in_data)
 
     print('probs: ', probs.size())  # prob torch.Size([bs, 1000]) view(prob.shape[0], -1, 3)
@@ -147,7 +148,7 @@ if __name__ == '__main__':
 
     ###########################################
 
-    vae = VariationalAutoEncoder(num_cubes=20 ** 3, threshold=0.001)
+    vae = VariationalAutoEncoder(num_cubes=10 ** 3, threshold=0.001)
 
     z = vae.reparameterize(mu, scale)
     print("params ", z.shape)  # torch.Size([1, 1000, 100, 3])
@@ -163,3 +164,7 @@ if __name__ == '__main__':
     ###########################################
     vae_out, probs, mu_out, sigma_out = vae(in_data)
     print("full_out ", vae_out.shape)  # torch.Size([1, num_samples, 3])
+
+    #### plot centers ####
+
+    plot_pc([mu[0].reshape(-1, 3).detach().numpy()], colors=("black"))

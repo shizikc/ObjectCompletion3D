@@ -2,7 +2,6 @@ import unittest
 
 import torch
 from src.pytorch import vae
-from src.pytorch.train import fit
 
 
 class TestShapeNet(unittest.TestCase):
@@ -32,7 +31,6 @@ class TestShapeNet(unittest.TestCase):
 
     def test_reparameterize(self):
         pass
-
 
     def test_dims_VariationalAutoEncoder(self):
         # dim test

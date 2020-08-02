@@ -10,13 +10,16 @@ from src.dataset.data_utils import set_fig, plot_mesh
 from src.dataset.shapenet import ShapeDiffDataset
 from src.pytorch.vae import VariationalAutoEncoder, VAELoss
 
-logging.getLogger().setLevel(logging.INFO)
+logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
+                    level=logging.INFO,
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--model_path', default='C:/Users/sharon/Documents/Research/ObjectDetection3D/model/model.pt')
 parser.add_argument('--train_path', default='C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/')
 parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
-parser.add_argument('--bins', type=int, default=20, help='resolution of main cube [default: 10]')
+parser.add_argument('--bins', type=int, default=20**3, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 32]')
@@ -46,7 +49,7 @@ r = lambda: np.random.rand()
 
 # Define the Model
 def get_model():
-    vae = VariationalAutoEncoder(num_cubes=10 ** 3, threshold=0.001).double()
+    vae = VariationalAutoEncoder(num_cubes=args.bins, threshold=0.001).double()
     return vae, opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
 
 
@@ -63,10 +66,14 @@ def loss_batch(model, input, prob_target, x_diff_target, loss_func, opt=None):
     :param opt:
     :return:
     """
-    # vae_out, probs, mu_out, sigma_out
+
+    # if idx % 100 ==0:
+    #     logging.info("Finish instance " + str(idx)+ "on epoch " + str(epoch))
+
     x_diff_pred, prob_pred, mu_out, sigma_out = model(input)
     #
-    loss = loss_func(prob_pred, prob_target, x_diff_pred, x_diff_target)  # scalar
+    loss = loss_func(prob_pred, prob_target.reshape((prob_pred.shape[0], prob_target.shape[0])),
+                     x_diff_pred, x_diff_target)  # scalar
 
     if opt is not None:
         # training
@@ -82,16 +89,19 @@ def fit(epochs, model, loss_func, op, train_dl, valid_dl):
     min_loss = 10000000
 
     for epoch in range(epochs):
+
         model.train()
         # model, input, prob_target, x_diff_target, loss_func, opt=None
         # x_partial, hist, edges, x_diff
         losses, nums = zip(
-            *[loss_batch(model, x, h.flatten(), d, loss_func, op) for x, h, e, d in train_dl]
+            *[loss_batch(model, x.transpose(2, 1), h.flatten(), d, loss_func, op) for x, h, e, d in train_dl]
         )
         train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
         if epoch % 5 == 0:
             logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, train_loss))
+            # plot distribution
+
 
         model.eval()
         with torch.no_grad():
@@ -129,6 +139,7 @@ if __name__ == '__main__':
 
         # train model
         fit(args.max_epoch, model, criterion, opt, train_loader, val_loader)
+    logging.info("finish training.")
 
     # evaluate
     if args.eval:
