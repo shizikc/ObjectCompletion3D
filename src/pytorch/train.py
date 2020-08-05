@@ -6,7 +6,6 @@ import torch.optim as opt
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from src.dataset.data_utils import set_fig, plot_mesh
 from src.dataset.shapenet import ShapeDiffDataset
 from src.pytorch.vae import VariationalAutoEncoder, VAELoss
 from src.dataset.data_utils import plot_pc
@@ -17,8 +16,10 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
-parser.add_argument('--model_path', default='C:/Users/sharon/Documents/Research/ObjectDetection3D/model/model.pt')
-parser.add_argument('--train_path', default='C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/')
+parser.add_argument('--model_path', default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/model.pt')
+                    # default='/home/coopers/models/model.pt')  #
+parser.add_argument('--train_path', default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
+                    # default='/home/coopers/data/chair/')  #
 parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=20 ** 3, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
@@ -34,6 +35,8 @@ args = parser.parse_args()
 dev = torch.device(
     "cuda") if torch.cuda.is_available() else torch.device("cpu")
 
+logging.info("Available device: " + str(dev))
+
 # Prepare the Data
 if args.train:
     train_dataset = ShapeDiffDataset(args.train_path, args.object_id)
@@ -43,30 +46,21 @@ if args.eval:
     val_dataset = ShapeDiffDataset(args.train_path, args.object_id, val=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, 1, shuffle=True)
 
-for x, h, e, d in train_loader:
-    break
-x0, y0, z0 = e[0][0][0:len(e[0][0]) - 1], e[0][1][0:len(e[0][1]) - 1], e[0][2][0:len(e[0][2]) - 1]
-xv0, yv0, zv0 = np.meshgrid(x0, y0, z0)  # each is (20,20,20)
-xyzv0 = torch.stack((torch.tensor(xv0), torch.tensor(yv0), torch.tensor(zv0)), dim=3)
-
-x1, y1, z1 = e[0][0][1:len(e[0][0])], e[0][1][1:len(e[0][1])], e[0][2][1:len(e[0][2])]
-xv1, yv1, zv1 = np.meshgrid(x1, y1, z1)  # each is (20,20,20)
-xyzv1 = torch.stack((torch.tensor(xv1), torch.tensor(yv1), torch.tensor(zv1)), dim=3)
-
 criterion = VAELoss()
 
-writer = SummaryWriter(args.log_dir)
+
+#writer = SummaryWriter(args.log_dir)
 
 r = lambda: np.random.rand()
 
 
 # Define the Model
 def get_model():
-    vae = VariationalAutoEncoder(num_cubes=args.bins, threshold=args.threshold).double()
-    return vae, opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
+    vae = VariationalAutoEncoder(num_cubes=args.bins, threshold=args.threshold, dev=dev).double().to(dev)
+    return vae.to(dev), opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
 
 
-def loss_batch(model, input, prob_target, x_diff_target, loss_func, opt=None, plot=False, n_bins=None):
+def loss_batch(model, input, prob_target, x_diff_target, loss_func, opt=None, idx=1):
     """
 
     :param model:
@@ -79,19 +73,17 @@ def loss_batch(model, input, prob_target, x_diff_target, loss_func, opt=None, pl
     :param opt:
     :return:
     """
-
-    # if idx % 100 ==0:
-    #     logging.info("Finish instance " + str(idx)+ "on epoch " + str(epoch))
-
     x_diff_pred, prob_pred, mu_out, sigma_out = model(input)
-    #
-    # plot distribution params
-    if plot:
-        bounderies = torch.max(torch.min(mu_out.view(n_bins, n_bins, n_bins, 3), xyzv0.float()), xyzv1.float())
-        plot_pc([bounderies.view(-1, 3).detach().numpy()], colors=("green"))
+
+    if idx % 1000 == 1:
+        logging.info("Finished " + str(idx) + " batches.")
+        # test for vanishing gradient
+        logging.info("sum of non changed centers: " + str(torch.sum(mu_out == model.last_mu)))
+
+    model.last_mu = mu_out
 
     loss = loss_func(prob_pred, prob_target.reshape((prob_pred.shape[0], prob_target.shape[0])),
-                     x_diff_pred, x_diff_target)  # scalar
+                     x_diff_pred, x_diff_target, mu_out, model.lower_bound, model.upper_bound)  # scalar
 
     if opt is not None:
         # training
@@ -102,6 +94,7 @@ def loss_batch(model, input, prob_target, x_diff_target, loss_func, opt=None, pl
     return loss.item(), input.shape[0]
 
 
+
 # Train the Model
 def fit(epochs, model, loss_func, op, train_dl, valid_dl):
     min_loss = 10000000
@@ -109,40 +102,32 @@ def fit(epochs, model, loss_func, op, train_dl, valid_dl):
     for epoch in range(epochs):
 
         model.train()
-        # model, input, prob_target, x_diff_target, loss_func, opt=None
-        # x_partial, hist, edges, x_diff
+
         losses, nums = zip(
-            *[loss_batch(model, x.transpose(2, 1), h.flatten(), d, loss_func, op,
-                         plot=epoch % 5 == 0, n_bins=e.shape[2]-1 ) for x, h, e, d in train_dl]
+            *[loss_batch(model, x.transpose(2, 1), h.flatten(), d, loss_func, op, i) for i, (x, h, e, d) in
+              enumerate(train_dl)]
         )
         train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
-        if epoch % 5 == 0:
-            logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, train_loss))
-
-
+        logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, train_loss))
 
         model.eval()
+
         with torch.no_grad():
             losses, nums = zip(
-                *[loss_batch(model, x, h.flatten(), d, loss_func) for x, h, e, d in valid_dl]
+                *[loss_batch(model, x.transpose(2, 1), h.flatten(), d, loss_func) for x, h, e, d in valid_dl]
             )
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
 
         # print to console
-        if epoch % 5 == 0:
-            logging.info("Epoch : % 3d, Validation error : % 5.5f" % (epoch, val_loss))
-
-        writer.add_scalar('epoch_training_loss', train_loss, epoch)
-        writer.add_scalar('epoch_validating_loss', val_loss, epoch)
+        logging.info("Epoch : % 3d, Validation error : % 5.5f" % (epoch, val_loss))
 
         if val_loss < min_loss:
             min_loss = val_loss
             min_model = model
 
         # temporary save model
-        if epoch % 50 == 0:
-            torch.save(min_model.state_dict(), args.model_path)
+        torch.save(min_model.state_dict(), args.model_path)
 
     # save model
     torch.save(min_model.state_dict(), args.model_path)
@@ -158,57 +143,5 @@ if __name__ == '__main__':
 
         # train model
         fit(args.max_epoch, model, criterion, opt, train_loader, val_loader)
+
     logging.info("finish training.")
-
-    # evaluate
-    if args.eval:
-        model, _ = get_model()
-        model.load_state_dict(torch.load(args.model_path, map_location=dev))
-        model.eval()
-
-        ivl = 2 / args.bins
-
-        for x_partial, hist, edges, x_diff in val_loader:
-            # print(x.shape) torch.Size([1, 1740, 3])
-            # print(h.shape) torch.Size([1, 10, 10, 10])
-            # print(d.shape) torch.Size([1, 325, 3])
-            # print(edges) # torch.Size([1, 3, 11])
-            pred, probs, mu_out, sigma_out = model(x_partial)  #
-            pred_round = torch.relu(pred[0] - args.threshold)
-            # uniform sample from bounding box
-            # cube indicator prediction
-            pred_ind = ((pred[0] - args.threshold) > 0)  # torch.Size([1000])
-            print("positive pred:", pred_ind.int().sum())
-
-            h_ind = (hist[0] > 0).flatten()  # torch.Size([1000])
-            d = h_ind.int().sum()
-            print("positive gt:", d)
-
-            ## Accuracy mesurment
-            cond1 = torch.tensor(h_ind == True)
-            cond2 = torch.tensor(pred_ind == h_ind)
-            acc_ind = cond1 & cond2  # torch.Size([1000])
-
-            logging.info("Indicator True Positive % f", acc_ind.float().sum() / d)
-            logging.info("Indicator Accuracy % f", acc_ind.float().sum())
-
-            # continues uniform distribution
-            err = torch.abs(pred - hist[0].flatten())  # torch.Size([1, 1000])
-
-            logging.info("Continues Accuracy % f", 1 - err[0].mean())
-
-            mesh = np.meshgrid(edges[0][0][0:args.bins], edges[0][1][0:args.bins], edges[0][2][0:args.bins])
-            h_ind = h_ind.reshape(args.bins, args.bins, args.bins)
-            pred_ind = pred_ind.reshape(args.bins, args.bins, args.bins)
-
-            ax = set_fig(edges[0])
-
-            # plot_mesh(ax, mesh[1][idx_h], mesh[0][idx_h], mesh[2][idx_h], ivl=ivl, col="red") #gt box
-
-            plot_mesh(ax, mesh[0][pred_ind], mesh[1][pred_ind], mesh[2][pred_ind], ivl=ivl, col="red")  # pred box
-            ax.scatter(x_partial[0][:, 0], x_partial[0][:, 1], x_partial[0][:, 2], s=4, color="grey")  # gt partial
-            ax.scatter(x_diff[0][:, 0], x_diff[0][:, 1], x_diff[0][:, 2], s=4, color="black")  # gt diff
-
-            # ax.scatter(mesh[0][pred_ind], mesh[1][pred_ind], mesh[2][pred_ind], s=7, color="red")  # gt diff
-            # ax.scatter( mesh[1][h_ind], mesh[0][h_ind], mesh[2][h_ind], s=4, col or="red")  # gt diff
-            break
