@@ -63,6 +63,7 @@ def chamfer_distance_with_batch(p1, p2, debug):
     '''
 
     assert p1.size(0) == p2.size(0) and p1.size(2) == p2.size(2)
+    assert p1.shape[1] > 0 and p2.shape[1] > 0
 
     if debug:
         print(p1[0])
