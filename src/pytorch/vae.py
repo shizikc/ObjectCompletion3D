@@ -1,3 +1,5 @@
+import logging
+
 import torch
 from torch.autograd import Variable
 import torch.nn as nn
@@ -7,7 +9,6 @@ import torch.nn.functional as F
 
 from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch
 from src.dataset.data_utils import plot_pc
-from src.dataset.shapenet import ShapeDiffDataset
 from src.pytorch.pointnet import PointNetDenseCls, PointNetCls
 
 
@@ -52,13 +53,13 @@ class Encoder(nn.Module):
         return F.softmax(self.cls_prob(h1), dim=1), self.fc_mu(h1), self.fc_mat(h1)
 
 
+
 class VAELoss(nn.Module):
     def __init__(self):
         super(VAELoss, self).__init__()
         self.bce_loss = nn.BCELoss(reduction='mean')
-        # self.chamfer_dist = ChamferDistance()
 
-    def forward(self, prob_pred, prob_target, x_diff_pred, x_diff_target):
+    def forward(self, prob_pred, prob_target, x_diff_pred, x_diff_target, mu, lower_bound, upper_bound):
         """
                 gives the batch normalized Variational Error.
 
@@ -69,17 +70,25 @@ class VAELoss(nn.Module):
         :return: scalar
         """
 
+        CR = torch.abs(mu.view(lower_bound.shape)) - (lower_bound + upper_bound) / 2 + 2 / upper_bound.shape[0]
+        CR = torch.sum(torch.relu(CR))
+
         BCE = self.bce_loss(prob_pred, prob_target)
 
         # points and points_reconstructed are n_points x 3 matrices
-        CD = chamfer_distance_with_batch(x_diff_pred, x_diff_target, False)
+        if x_diff_pred.shape[1] == 0:
+            logging.info("Found partial with no positive probability cubes")
+            CD = 100
+        else:
+            CD = chamfer_distance_with_batch(x_diff_pred, x_diff_target, False)
 
-        return BCE + CD
+        return BCE + CD + CR
+
 
 
 class VariationalAutoEncoder(nn.Module):
 
-    def __init__(self, num_cubes, threshold, num_sample_cube=20):
+    def __init__(self, num_cubes, threshold, dev='cpu', num_sample_cube=20):
         """
 
         :param num_cubes: cube resolution float
@@ -88,20 +97,23 @@ class VariationalAutoEncoder(nn.Module):
         """
         super(VariationalAutoEncoder, self).__init__()
         self.num_cubes = num_cubes
-        self.n_bins = round(num_cubes ** (1. / 3.))
+        self.n_bins = int(round(num_cubes ** (1. / 3.)))
         self.threshold = threshold
         self.num_sample_cube = num_sample_cube
-
+        self.last_mu = None
+        self.dev = dev
         self.encoder = Encoder(num_cubes=num_cubes)
 
         e0 = torch.arange(-1, 1, 2 / self.n_bins)
         e1 = e0 + 2 / self.n_bins
 
         xv0, yv0, zv0 = np.meshgrid(e0, e0, e0)  # each is (20,20,20)
-        self.lower_bound = torch.stack((torch.tensor(xv0), torch.tensor(yv0), torch.tensor(zv0)), dim=3)
+        self.lower_bound = torch.stack((torch.tensor(xv0), torch.tensor(yv0), torch.tensor(zv0)), dim=3).double().to(
+            dev)
 
         xv1, yv1, zv1 = np.meshgrid(e1, e1, e1)  # each is (20,20,20)
-        self.upper_bound = torch.stack((torch.tensor(xv1), torch.tensor(yv1), torch.tensor(zv1)), dim=3)
+        self.upper_bound = torch.stack((torch.tensor(xv1), torch.tensor(yv1), torch.tensor(zv1)), dim=3).double().to(
+            dev)
 
         # self.decoder = Decoder()
 
@@ -117,10 +129,10 @@ class VariationalAutoEncoder(nn.Module):
         :return:
         """
         probs, mu, sigma = self.encoder(x)
-        # TODO: ensure each mu is inside the cube?
-        mu = torch.max(torch.min(mu.view(self.n_bins, self.n_bins, self.n_bins, 3), self.lower_bound.float()),
-                       self.upper_bound.float()).view(1,-1)
-        # mu = torch.tanh(mu) # mu[i] in [-1,1]
+
+        # TODO: clipping mu
+        # mu = torch.min(mu.view(self.n_bins, self.n_bins, self.n_bins, 3), self.lower_bound)
+        # mu = torch.max(mu, self.upper_bound).view(1, -1)
 
         z = self.reparameterize(mu, sigma)
 
@@ -146,7 +158,7 @@ class VariationalAutoEncoder(nn.Module):
         vector_size = (mu.shape[0], self.num_cubes, self.num_sample_cube, 3)
 
         # sample random standard
-        eps = Variable(torch.randn(vector_size))
+        eps = Variable(torch.randn(vector_size)).to(self.dev)
         eps *= sigma.view(sigma.shape[0], -1, 1, 3)
         eps += mu.view(mu.shape[0], -1, 1, 3)
 
@@ -169,7 +181,7 @@ if __name__ == '__main__':
 
     ###########################################
 
-    vae = VariationalAutoEncoder(num_cubes=20 ** 3, threshold=0.0001)
+    vae = VariationalAutoEncoder(num_cubes=20 ** 3, threshold=0.0001, device='cpu')
 
     z = vae.reparameterize(mu, scale)
     print("params ", z.shape)  # torch.Size([1, 1000, 100, 3])
@@ -183,9 +195,9 @@ if __name__ == '__main__':
     print("out", out.shape)  # torch.rand(1, 500, 3)
 
     ###########################################
+
     vae_out, probs, mu_out, sigma_out = vae(in_data)
     print("full_out ", vae_out.shape)  # torch.Size([1, num_samples, 3])
 
     #### plot centers ####
-
     plot_pc([mu_out[0].reshape(-1, 3).detach().numpy()], colors=("black"))
