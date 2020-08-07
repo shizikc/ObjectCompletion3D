@@ -17,9 +17,10 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
 parser = argparse.ArgumentParser()
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--model_path', default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/model.pt')
-                    # default='/home/coopers/models/model.pt')  #
-parser.add_argument('--train_path', default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
-                    # default='/home/coopers/data/chair/')  #
+# default='/home/coopers/models/model.pt')  #
+parser.add_argument('--train_path',
+                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
+# default='/home/coopers/data/chair/')  #
 parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=20 ** 3, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
@@ -37,9 +38,14 @@ dev = torch.device(
 
 logging.info("Available device: " + str(dev))
 
+bins = args.bins
+threshold = args.threshold
+model_path = args.model_path
+train_path = args.train_path
+object_id = args.object_id
 # Prepare the Data
 if args.train:
-    train_dataset = ShapeDiffDataset(args.train_path, args.object_id)
+    train_dataset = ShapeDiffDataset(train_path, object_id)
     train_loader = torch.utils.data.DataLoader(train_dataset, args.batch_size, shuffle=True)
 
 if args.eval:
@@ -48,15 +54,14 @@ if args.eval:
 
 criterion = VAELoss()
 
-
-#writer = SummaryWriter(args.log_dir)
+# writer = SummaryWriter(args.log_dir)
 
 r = lambda: np.random.rand()
 
 
 # Define the Model
 def get_model():
-    vae = VariationalAutoEncoder(num_cubes=args.bins, threshold=args.threshold, dev=dev).double().to(dev)
+    vae = VariationalAutoEncoder(num_cubes=bins, threshold=threshold, dev=dev).double().to(dev)
     return vae.to(dev), opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
 
 
@@ -92,7 +97,6 @@ def loss_batch(model, input, prob_target, x_diff_target, loss_func, opt=None, id
         opt.zero_grad()
 
     return loss.item(), input.shape[0]
-
 
 
 # Train the Model

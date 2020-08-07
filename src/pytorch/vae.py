@@ -70,7 +70,7 @@ class VAELoss(nn.Module):
         :return: scalar
         """
 
-        CR = torch.abs(mu.view(lower_bound.shape)) - (lower_bound + upper_bound) / 2 + 2 / upper_bound.shape[0]
+        CR = torch.abs(mu.view(lower_bound.shape)) - (lower_bound + upper_bound) / 2 + 1 / upper_bound.shape[0]
         CR = torch.sum(torch.relu(CR))
 
         BCE = self.bce_loss(prob_pred, prob_target)
