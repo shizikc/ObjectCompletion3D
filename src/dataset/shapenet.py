@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from src.dataset.data_utils import plot_pc
+# from src.dataset.data_utils import plot_pc
 
 dev = torch.device(
     "cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -174,7 +174,7 @@ if __name__ == '__main__':
 
     shapenet = ShapeDiffDataset(train_path, obj_id)
     x_partial, hist, edges, x_diff = shapenet[0]
-    plot_pc([x_partial, x_diff], colors=("black", "red"))
+    # plot_pc([x_partial, x_diff], colors=("black", "red"))
 
     # x = np.random.rand(25) * 10
     # y = np.random.rand(25) * 10
