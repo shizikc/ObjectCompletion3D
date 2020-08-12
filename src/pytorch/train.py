@@ -16,11 +16,12 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
-parser.add_argument('--model_path', default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/model.pt')
-                    # default='/home/coopers/models/model.pt')
+parser.add_argument('--model_path',
+                    # default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/model.pt')
+                    default='/home/coopers/models/model.pt')
 parser.add_argument('--train_path',
-                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
-                    # default='/home/coopers/data/chair/')
+                    # default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
+                    default='/home/coopers/data/chair/')
 parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=20 ** 3, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')

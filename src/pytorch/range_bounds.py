@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class RegularizedClip(Module):
-    def __init__(self, lower, upper, coeff=1., method="abs"):
+    def __init__(self, lower, upper, coeff=2., method="abs"):
         super(RegularizedClip, self).__init__()
         assert method in ["abs", "square"]
         self.method = method

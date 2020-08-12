@@ -1,4 +1,3 @@
-
 from torch.nn import Module
 import torch.nn as nn
 
@@ -11,10 +10,9 @@ class FilterLocalization(Module):
         self.bce_loss = nn.BCELoss(reduction='mean')
         self.threshold = threshold
         self.coeff = coeff
-        self.loss = None
+        self.loss = 0.0
 
     def forward(self, p, prob_target, samples):
-
 
         BCE = self.bce_loss(p, prob_target)
         self.loss = self.coeff * BCE
@@ -24,3 +22,4 @@ class FilterLocalization(Module):
         out = samples[0][mask]  # torch.Size([high_prob_cubes, 100, 3])
 
         return out.view(1, -1, 3)  # estimated diff point cloud in [bs, num_right_cubes * samples_in_cube, 3]
+        # return samples[0][1:1000].view(1, -1, 3)  # estimated diff point cloud in [bs, num_right_cubes * samples_in_cube, 3]

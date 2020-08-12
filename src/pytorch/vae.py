@@ -11,7 +11,7 @@ import torch.nn.functional as F
 
 from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch
 # from src.dataset.data_utils import plot_pc
-from src.pytorch.VAE.region_select import FilterLocalization
+from src.pytorch.region_select import FilterLocalization
 from src.pytorch.pointnet import PointNetDenseCls, PointNetCls
 from src.pytorch.range_bounds import RegularizedClip
 
@@ -41,7 +41,7 @@ class Encoder(nn.Module):
 
 
 class VAELoss(nn.Module):
-    def __init__(self, bce_coeff=1., cd_coeff=1.):
+    def __init__(self, cd_coeff=5.):
         """
 
         :param coeff: list in length 3
@@ -61,10 +61,9 @@ class VAELoss(nn.Module):
         :return: scalar
         """
 
-
         # points and points_reconstructed are n_points x 3 matrices
         if x_diff_pred.shape[1] == 0:
-            logging.info("Found partial with no positive probability cubes: " + str(x_diff_pred.shape) )
+            logging.info("Found partial with no positive probability cubes: " + str(x_diff_pred.shape))
             CD = 100
         else:
             CD = chamfer_distance_with_batch(x_diff_pred, x_diff_target, False)
@@ -107,8 +106,7 @@ class VariationalAutoEncoder(nn.Module):
         self.encoder = Encoder(num_cubes=num_cubes)
         self.rc = RegularizedClip(lower=self.lower_bound, upper=self.upper_bound, coeff=0.5, method="square")
         self.fl = FilterLocalization()
-        self.vloss = VAELoss(bce_coeff=1., cd_coeff=1.)
-
+        self.vloss = VAELoss()
 
     def _reparameterize(self):
         """
@@ -146,9 +144,7 @@ class VariationalAutoEncoder(nn.Module):
 
         z = self._reparameterize()
 
-        out = self.fl(self.probs, prob_target, z )
-
-        print("out: ", out.shape)
+        out = self.fl(self.probs, prob_target, z)
 
         self.vloss(out, x_target)
 
@@ -156,7 +152,6 @@ class VariationalAutoEncoder(nn.Module):
 
 
 if __name__ == '__main__':
-
     bs = 1
     num_points = 250
     resulotion = 20 ** 3
