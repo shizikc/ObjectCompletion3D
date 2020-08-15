@@ -18,10 +18,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--model_path',
                     # default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/model.pt')
-                    default='/home/coopers/models/model.pt')
+                    default='models/model.pt')
 parser.add_argument('--train_path',
                     # default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
-                    default='/home/coopers/data/chair/')
+                    # default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
+                    default='/home/yonatan/data/oc3d/chair/')
 parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=20 ** 3, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
@@ -116,7 +117,7 @@ def fit(epochs, model, op):
 
         with torch.no_grad():
             losses, nums = zip(
-                *[loss_batch(model, x.transpose(2, 1), h.flatten(), d, i) for i, (x, h, e, d) in
+                *[loss_batch(model, x.transpose(2, 1), h.flatten(), x_diff_target=d, idx=i) for i, (x, h, e, d) in
                   enumerate(val_loader)]
             )
 
