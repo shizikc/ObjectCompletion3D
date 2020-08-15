@@ -3,8 +3,6 @@ import logging
 
 import torch
 import torch.optim as opt
-import numpy as np
-
 # from torch.utils.tensorboard import SummaryWriter
 
 from src.dataset.shapenet import ShapeDiffDataset
@@ -17,11 +15,11 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
 parser = argparse.ArgumentParser()
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--model_path',
-                    # default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/model.pt')
-                    default='/home/coopers/models/model.pt')
+                    default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/model.pt')
+                    # default='/home/coopers/models/model.pt')
 parser.add_argument('--train_path',
-                    # default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
-                    default='/home/coopers/data/chair/')
+                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
+                    # default='/home/coopers/data/chair/')
 parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=20 ** 3, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
@@ -53,16 +51,14 @@ if args.eval:
 
 # writer = SummaryWriter(args.log_dir)
 
-r = lambda: np.random.rand()
-
 
 # Define the Model
 def get_model():
-    vae = VariationalAutoEncoder(num_cubes=bins, dev=dev).double().to(dev)
+    vae = VariationalAutoEncoder(num_cubes=bins, dev=dev).double()
     return vae.to(dev), opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
 
 
-def loss_batch(model, input, prob_target, x_diff_target, opt=None, idx=1):
+def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     """
 
     :param idx:
@@ -76,15 +72,12 @@ def loss_batch(model, input, prob_target, x_diff_target, opt=None, idx=1):
     :return:
     """
 
-    # loss_batch(model, x.transpose(2, 1), h.flatten(), d, op, i)
+    x_diff_pred = mdl(input, x_diff_target, prob_target)
 
-    # vae(in_data, gt_diff, gt_prob)
-    x_diff_pred = model(input, x_diff_target, prob_target)
+    # if idx % 1000 == 1:
+    logging.info("Finished " + str(idx) + " batches.")
 
-    if idx % 1000 == 1:
-        logging.info("Finished " + str(idx) + " batches.")
-
-    loss = sum([m.loss for m in model.modules() if hasattr(m, 'loss')])
+    loss = sum([m.loss for m in model.modules() if hasattr(m, 'loss') ])
 
     if opt is not None:
         # training
@@ -105,22 +98,22 @@ def fit(epochs, model, op):
         model.train()
 
         losses, nums = zip(
-            *[loss_batch(model, x.transpose(2, 1), h.flatten(), d, op, i) for i, (x, h, e, d) in
-              enumerate(train_loader)]
+            *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=i)
+              for i, (x, h, e, d) in enumerate(train_loader)]
         )
 
-        train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
+        train_loss = torch.sum(torch.multiply(losses, nums)) / torch.sum(nums)
         logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, train_loss))
 
         model.eval()
 
         with torch.no_grad():
             losses, nums = zip(
-                *[loss_batch(model, x.transpose(2, 1), h.flatten(), d, i) for i, (x, h, e, d) in
-                  enumerate(val_loader)]
+                *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, idx=i)
+                  for i, (x, h, e, d) in enumerate(val_loader)]
             )
 
-        val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
+        val_loss = torch.sum(torch.multiply(losses, nums)) / torch.sum(nums)
         logging.info("Epoch : % 3d, Validation error : % 5.5f" % (epoch, val_loss))
 
         if val_loss < min_loss:
