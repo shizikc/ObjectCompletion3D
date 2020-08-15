@@ -152,7 +152,6 @@ class ShapeDiffDataset(Dataset):
         self.fn_list = os.listdir(self.partial_path)
 
     def __len__(self):
-        return 3
         return len(self.fn_list)
 
     def __getitem__(self, idx):

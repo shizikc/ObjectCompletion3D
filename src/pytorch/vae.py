@@ -137,10 +137,6 @@ class VariationalAutoEncoder(nn.Module):
         :param x: partial object point cloud
         :return:
         """
-        for name, param in self.state_dict().items():
-            if not param.requires_grad:
-                print("Before encoder: " + str(name))
-                break
 
         self.probs, self.mu, self.sigma = self.encoder(x) # mu, sigma, probs in torch.DoubleTensor
 
