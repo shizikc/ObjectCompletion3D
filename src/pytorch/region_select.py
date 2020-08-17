@@ -1,8 +1,7 @@
-from torch.nn import Module
 import torch.nn as nn
 
 
-class FilterLocalization(Module):
+class FilterLocalization(nn.Module):
 
     def __init__(self, coeff=2., threshold=0.01):
         super(FilterLocalization, self).__init__()

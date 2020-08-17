@@ -96,12 +96,10 @@ class VariationalAutoEncoder(nn.Module):
         e1 = e0 + 2 / self.n_bins
 
         xv0, yv0, zv0 = torch.meshgrid(e0, e0, e0)  # each is (20,20,20)
-        self.lower_bound = torch.stack((torch.tensor(xv0), torch.tensor(yv0), torch.tensor(zv0)), dim=3).double().to(
-            dev).detach()
+        self.lower_bound = torch.stack((xv0, yv0, zv0), dim=3).double().to(dev)
 
         xv1, yv1, zv1 = torch.meshgrid(e1, e1, e1)  # each is (20,20,20)
-        self.upper_bound = torch.stack((torch.tensor(xv1), torch.tensor(yv1), torch.tensor(zv1)), dim=3).double().to(
-            dev).detach()
+        self.upper_bound = torch.stack((xv1, yv1, zv1), dim=3).double().to(dev)
 
         self.encoder = Encoder(num_cubes=num_cubes)
         self.rc = RegularizedClip(lower=self.lower_bound, upper=self.upper_bound, coeff=0.5, method="square")
@@ -138,7 +136,7 @@ class VariationalAutoEncoder(nn.Module):
         :return:
         """
 
-        self.probs, self.mu, self.sigma = self.encoder(x) # mu, sigma, probs in torch.DoubleTensor
+        self.probs, self.mu, self.sigma = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
 
         ##  clipping mu and calculating regulerize loss factor
         self.mu = self.rc(self.mu.view(self.n_bins, self.n_bins, self.n_bins, 3))
@@ -158,11 +156,12 @@ if __name__ == '__main__':
     resulotion = 20 ** 3
 
     train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/'
+    # train_path = '/home/coopers/data/chair/'
     obj_id = '03001627'
 
     shapenet = ShapeDiffDataset(train_path, obj_id)
 
-    train_loader = torch.utils.data.DataLoader(shapenet,1, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(shapenet, 1, shuffle=True)
 
     x_partial, hist, edges, x_diff = next(iter(train_loader))
 

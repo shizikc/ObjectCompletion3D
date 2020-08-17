@@ -169,11 +169,11 @@ class ShapeDiffDataset(Dataset):
 
 
 if __name__ == '__main__':
-    train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/'
-    obj_id = '03001627'
+    # train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/'
+    # obj_id = '03001627'
 
-    shapenet = ShapeDiffDataset(train_path, obj_id)
-    x_partial, hist, edges, x_diff = shapenet[0]
+    # shapenet = ShapeDiffDataset(train_path, obj_id)
+    # x_partial, hist, edges, x_diff = shapenet[0]
     # plot_pc([x_partial, x_diff], colors=("black", "red"))
 
     # x = np.random.rand(25) * 10
@@ -193,14 +193,14 @@ if __name__ == '__main__':
     # ax.scatter(mesh[0][h_ind.T] , mesh[1][h_ind.T])
     # plt.grid(b=True, which='both')
     # print(h.T)
-    #
-    # data_writer(GT_PATH)
-    # data_writer(GT_PATH.replace("val", "train"))
-    # data_writer(args.data_path)
+
+    GT_PATH = "C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\val\\gt\\03636649\\"
+    data_writer(GT_PATH)
+    data_writer(GT_PATH.replace("val", 'train'))
 
     # # expend
     # mesh = np.meshgrid(edges[0][0:10], edges[1][0:10], edges[2][0:10])
-    #
+
     # ax = set_fig(edges)
     # plot_mesh(ax, mesh[1][h_ind], mesh[0][h_ind], mesh[2][h_ind], ivl=0.2, col="red") #gt box
     # ax.scatter(x_diff[:, 0], x_diff[:, 1], x_diff[:, 2], s=4, color="grey")  # gt diff
