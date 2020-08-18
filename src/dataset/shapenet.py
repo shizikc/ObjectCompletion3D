@@ -10,15 +10,9 @@ from torch.utils.data import Dataset
 
 from src.dataset.data_utils import plot_pc
 
-dev = torch.device(
-    "cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 logging.getLogger().setLevel(logging.INFO)
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--data_path', default='/data', help='data dir [''default: ''../data]')
-parser.add_argument('--bins', default=20, help='histogram resolution')
-args = parser.parse_args()
 
 # PATH = FLAGS.data_path
 LOWER_LIM = -1
@@ -128,7 +122,7 @@ def create_partial_from_complete(complete):
 class ShapeDiffDataset(Dataset):
     """shapenet partial dataset"""
 
-    def __init__(self, path, bins):
+    def __init__(self, path, bins, dev):
         """
 
         :param root_path: string : Root directory of structure: root
@@ -142,6 +136,7 @@ class ShapeDiffDataset(Dataset):
         """
         self.path = path
         self.bins = bins
+        self.dev = dev
         self.fn_list = os.listdir(self.path)
 
     def __len__(self):
@@ -154,7 +149,8 @@ class ShapeDiffDataset(Dataset):
         x_partial = create_partial_from_complete(x_complete)
         x_diff = create_diff_point_cloud(x_complete, x_partial)
         H, edges = create_hist_labels(x_diff, self.bins)
-        return x_partial.to(dev), torch.tensor(x_diff).to(dev), torch.tensor(H).to(dev)
+
+        return x_partial.to(self.dev), torch.tensor(x_diff).to(self.dev), torch.tensor(H).to(self.dev)
 
 
 if __name__ == '__main__':
