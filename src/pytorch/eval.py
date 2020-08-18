@@ -3,29 +3,35 @@
 
 import torch
 
+from src.dataset.data_utils import plot_pc
 from src.dataset.shapenet import ShapeDiffDataset
-from src.pytorch.train import get_model, threshold, model_path, dev, bins, object_id, train_path
+from union import get_model, model_path
 
 model, _ = get_model()
-model.load_state_dict(torch.jit.load(model_path, map_location=dev))
+model.load_state_dict(torch.jit.load(model_path, map_location='cpu'))
 model.eval()
 
-val_dataset = ShapeDiffDataset(train_path, object_id, val=True)
+train_path = "C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\"
+
+val_dataset = ShapeDiffDataset(train_path, "04256520", val=True)
 val_loader = torch.utils.data.DataLoader(val_dataset, 1, shuffle=True)
-
-ivl = 2 / bins
-
 
 if __name__ == '__main__':
 
-    for x_partial, hist, edges, x_diff in val_loader:
-        pred, probs, mu_out, sigma_out = model(x_partial)  #
-        pred_round = torch.relu(pred[0] - threshold)
-        # uniform sample from bounding box
-        # cube indicator prediction
-        pred_ind = ((pred[0] - threshold) > 0)  # torch.Size([1000])
-        print("positive pred:", pred_ind.int().sum())
+    for i, (x_partial, hist, edges, x_diff) in enumerate(val_loader):
+        pred = model(x_partial)
+        # pred_round = torch.relu(pred[0] - threshold)
 
+        # uniform sample from bounding box
+        plot_pc([x_partial, pred], colors=("black", "red"))
+        plot_pc([x_partial[0], x_diff[0]], colors=("black", "red"))
+
+        if i > 5:
+            break
+
+        # # cube indicator prediction
+        # pred_ind = ((pred[0] - threshold) > 0)  # torch.Size([1000])
+        # print("positive pred:", pred_ind.int().sum())
 
         # h_ind = (hist[0] > 0).flatten()  # torch.Size([1000])
         # d = h_ind.int().sum()
