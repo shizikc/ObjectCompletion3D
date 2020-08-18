@@ -5,6 +5,7 @@ import torch
 
 from src.dataset.data_utils import plot_pc
 from src.dataset.shapenet import ShapeDiffDataset
+from src.pytorch.train import model_path, get_model
 
 model, _ = get_model()
 model.load_state_dict(torch.jit.load(model_path, map_location='cpu'))

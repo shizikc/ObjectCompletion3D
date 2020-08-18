@@ -1,5 +1,7 @@
 import argparse
 import logging
+from pathlib import Path
+
 import numpy as np
 
 import torch
@@ -19,10 +21,10 @@ parser.add_argument('--model_path',
                     default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
 # default='/home/coopers/models/')
 parser.add_argument('--train_path',
-                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\')
+                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
 # default='/home/coopers/data/chair/')
 parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
-parser.add_argument('--bins', type=int, default=20 ** 3, help='resolution of main cube [default: 10]')
+parser.add_argument('--bins', type=int, default=20, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 32]')
@@ -42,18 +44,19 @@ bins = args.bins
 threshold = args.threshold
 object_id = args.object_id
 model_path = args.model_path + "model_" + str(object_id) + "_" + str(threshold) + ".pt"
-train_path = args.train_path
-cf_coeff=args.cf_coeff
-rc_coeff=args.rc_coeff
-bce_coeff=args.bce_coeff
+train_path = Path(args.train_path, object_id)
+val_path = args.train_path.replace('train', 'val')
+cf_coeff = args.cf_coeff
+rc_coeff = args.rc_coeff
+bce_coeff = args.bce_coeff
 
 # Prepare the Data
 if args.train:
-    train_dataset = ShapeDiffDataset(train_path, object_id)
+    train_dataset = ShapeDiffDataset(train_path, bins)
     train_loader = torch.utils.data.DataLoader(train_dataset, args.batch_size, shuffle=True)
 
 if args.eval:
-    val_dataset = ShapeDiffDataset(args.train_path, args.object_id, val=True)
+    val_dataset = ShapeDiffDataset(val_path, bins)
     val_loader = torch.utils.data.DataLoader(val_dataset, 1, shuffle=True)
 
 
@@ -62,7 +65,7 @@ if args.eval:
 
 # Define the Model
 def get_model():
-    vae = VariationalAutoEncoder(num_voxels=bins, dev=dev, voxel_sample=20, cf_coeff=cf_coeff,
+    vae = VariationalAutoEncoder(num_voxels=bins ** 3, dev=dev, voxel_sample=20, cf_coeff=cf_coeff,
                                  threshold=threshold, rc_coeff=rc_coeff, bce_coeff=bce_coeff,
                                  regular_method='square').double()
     return vae.to(dev), opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
@@ -79,7 +82,8 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     :param x_diff_pred:
     :param x_diff_target:
     :param opt:
-    :return:    """
+    :return:
+    """
 
     x_diff_pred = mdl(input, x_diff_target, prob_target)
 
@@ -104,18 +108,17 @@ def fit(epochs, model, op):
 
         losses, nums = zip(
             *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=i)
-              for i, (x, h, e, d) in enumerate(train_loader)]
+              for i, (x, d, h) in enumerate(train_loader)]
         )
 
         train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, train_loss))
 
         model.eval()
-
         with torch.no_grad():
             losses, nums = zip(
                 *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, idx=i)
-                  for i, (x, h, e, d) in enumerate(val_loader)]
+                  for i, (x, d, h) in enumerate(val_loader)]
             )
 
         val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
