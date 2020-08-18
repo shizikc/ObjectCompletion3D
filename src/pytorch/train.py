@@ -19,7 +19,7 @@ parser.add_argument('--model_path',
                     default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
 # default='/home/coopers/models/')
 parser.add_argument('--train_path',
-                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
+                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\')
 # default='/home/coopers/data/chair/')
 parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=20 ** 3, help='resolution of main cube [default: 10]')
@@ -28,6 +28,9 @@ parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 othe
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 32]')
 parser.add_argument('--object_id', default='04256520', help='object id = sub folder name [default: 03001627 (chair)]')
 parser.add_argument('--threshold', default=0.01, help='cube probability threshold')
+parser.add_argument('--cf_coeff', default=1)
+parser.add_argument('--bce_coeff', default=1)
+parser.add_argument('--rc_coeff', default=1)
 args = parser.parse_args()
 
 # Model Life-Cycle
@@ -40,6 +43,9 @@ threshold = args.threshold
 object_id = args.object_id
 model_path = args.model_path + "model_" + str(object_id) + "_" + str(threshold) + ".pt"
 train_path = args.train_path
+cf_coeff=args.cf_coeff
+rc_coeff=args.rc_coeff
+bce_coeff=args.bce_coeff
 
 # Prepare the Data
 if args.train:
@@ -56,7 +62,9 @@ if args.eval:
 
 # Define the Model
 def get_model():
-    vae = VariationalAutoEncoder(num_cubes=bins, dev=dev).double()
+    vae = VariationalAutoEncoder(num_voxels=bins, dev=dev, voxel_sample=20, cf_coeff=cf_coeff,
+                                 threshold=threshold, rc_coeff=rc_coeff, bce_coeff=bce_coeff,
+                                 regular_method='square').double()
     return vae.to(dev), opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
 
 
@@ -71,8 +79,7 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     :param x_diff_pred:
     :param x_diff_target:
     :param opt:
-    :return:
-    """
+    :return:    """
 
     x_diff_pred = mdl(input, x_diff_target, prob_target)
 

@@ -5,7 +5,6 @@ import torch
 
 from src.dataset.data_utils import plot_pc
 from src.dataset.shapenet import ShapeDiffDataset
-from union import get_model, model_path
 
 model, _ = get_model()
 model.load_state_dict(torch.jit.load(model_path, map_location='cpu'))
@@ -26,8 +25,6 @@ if __name__ == '__main__':
         plot_pc([x_partial, pred], colors=("black", "red"))
         plot_pc([x_partial[0], x_diff[0]], colors=("black", "red"))
 
-        if i > 5:
-            break
 
         # # cube indicator prediction
         # pred_ind = ((pred[0] - threshold) > 0)  # torch.Size([1000])
