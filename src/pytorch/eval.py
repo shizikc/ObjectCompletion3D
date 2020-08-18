@@ -5,10 +5,11 @@ import torch
 
 from src.dataset.data_utils import plot_pc
 from src.dataset.shapenet import ShapeDiffDataset
+from union import get_model, model_path
 
-# model, _ = get_model()
-# model.load_state_dict(torch.jit.load(model_path, map_location=dev))
-# model.eval()
+model, _ = get_model()
+model.load_state_dict(torch.jit.load(model_path, map_location='cpu'))
+model.eval()
 
 train_path = "C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\"
 
@@ -18,11 +19,11 @@ val_loader = torch.utils.data.DataLoader(val_dataset, 1, shuffle=True)
 if __name__ == '__main__':
 
     for i, (x_partial, hist, edges, x_diff) in enumerate(val_loader):
-        # pred = model(x_partial)
+        pred = model(x_partial)
         # pred_round = torch.relu(pred[0] - threshold)
 
         # uniform sample from bounding box
-        # plot_pc([x_partial, pred], colors=("black", "red"))
+        plot_pc([x_partial, pred], colors=("black", "red"))
         plot_pc([x_partial[0], x_diff[0]], colors=("black", "red"))
 
         if i > 5:

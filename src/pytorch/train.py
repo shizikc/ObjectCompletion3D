@@ -26,8 +26,8 @@ parser.add_argument('--bins', type=int, default=20 ** 3, help='resolution of mai
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 32]')
-parser.add_argument('--object_id', default='03001627', help='object id = sub folder name [default: 03001627 (chair)]')
-parser.add_argument('--threshold', default=0.001, help='cube probability threshold')
+parser.add_argument('--object_id', default='04256520', help='object id = sub folder name [default: 03001627 (chair)]')
+parser.add_argument('--threshold', default=0.01, help='cube probability threshold')
 args = parser.parse_args()
 
 # Model Life-Cycle
