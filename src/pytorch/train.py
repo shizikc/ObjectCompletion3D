@@ -16,12 +16,16 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
 parser = argparse.ArgumentParser()
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--model_path',
-                    default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
+                    # default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
+                    default='model/')
 # default='/home/coopers/models/')
+
+
 parser.add_argument('--train_path',
-                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
+                    # default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\chair\\')
+                    default='/home/yonatan/data/oc3d/chair/')
 # default='/home/coopers/data/chair/')
-parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
+parser.add_argument('--max_epoch', type=int, default=10000, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=20 ** 3, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
@@ -91,36 +95,43 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
 
 
 def fit(epochs, model, op):
+    (x, h, e, d) = next(iter(train_loader))
+    model.train()
+    losses = []
+    nums = []
+
     for epoch in range(epochs):
 
-        model.train()
 
-        losses, nums = zip(
-            *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=i)
-              for i, (x, h, e, d) in enumerate(train_loader)]
-        )
+        # for i,  in enumerate(train_loader):
+
+        l, n = loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=epoch)
+        losses.append(l)
+        nums.append(n)
+
 
         train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, train_loss))
 
-        model.eval()
+        # model.eval()
 
-        with torch.no_grad():
-            losses, nums = zip(
-                *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, idx=i)
-                  for i, (x, h, e, d) in enumerate(val_loader)]
-            )
+        # with torch.no_grad():
+        #     losses, nums = zip(
+        #         *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, idx=i)
+        #           for i, (x, h, e, d) in enumerate(val_loader)]
+        #     )
 
-        val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
-        logging.info("Epoch : % 3d, Validation error : % 5.5f" % (epoch, val_loss))
 
-        if epoch == 0:
-            min_loss = val_loss
+        # val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
+        # logging.info("Epoch : % 3d, Validation error : % 5.5f" % (epoch, val_loss))
 
-        if val_loss <= min_loss:
-            min_loss = val_loss
-            # temporary save model
-            torch.save(model.state_dict(), model_path)
+        # if epoch == 0:
+        #     min_loss = val_loss
+        #
+        # if val_loss <= min_loss:
+        #     min_loss = val_loss
+        #     # temporary save model
+        #     torch.save(model.state_dict(), model_path)
 
 
 if __name__ == '__main__':

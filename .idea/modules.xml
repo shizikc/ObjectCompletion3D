@@ -3,7 +3,6 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/ObjectCompletion3D.iml" filepath="$PROJECT_DIR$/.idea/ObjectCompletion3D.iml" />
-      <module fileurl="file://$PROJECT_DIR$/../completion3d/.idea/completion3d.iml" filepath="$PROJECT_DIR$/../completion3d/.idea/completion3d.iml" />
     </modules>
   </component>
 </project>
