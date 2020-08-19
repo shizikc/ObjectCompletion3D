@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch
 # from src.dataset.data_utils import plot_pc
-from src.dataset.shapenet import ShapeDiffDataset
+from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.region_select import FilterLocalization
 from src.pytorch.pointnet import PointNetDenseCls, PointNetCls
 from src.pytorch.range_bounds import RegularizedClip
