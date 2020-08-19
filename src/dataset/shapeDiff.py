@@ -8,17 +8,10 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-# from src.dataset.data_utils import plot_pc
+from src.dataset.data_utils import plot_pc
 
-dev = torch.device(
-    "cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 logging.getLogger().setLevel(logging.INFO)
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--data_path', default='/data', help='data dir [''default: ''../data]')
-parser.add_argument('--bins', default=20, help='histogram resolution')
-args = parser.parse_args()
 
 
 # PATH = FLAGS.data_path
@@ -123,13 +116,13 @@ def create_partial_from_complete(complete):
 
     x_partial_tmp = complete[cond]
     idx = rng.choice(s, 1740 - s, replace=False)
-    return np.concatenate((x_partial_tmp, x_partial_tmp[idx, :]))
+    return torch.tensor(np.concatenate((x_partial_tmp, x_partial_tmp[idx, :])))
 
 
 class ShapeDiffDataset(Dataset):
     """shapenet partial dataset"""
 
-    def __init__(self, root_path, object_id, val=False):
+    def __init__(self, path, bins, dev):
         """
 
         :param root_path: string : Root directory of structure: root
@@ -141,68 +134,28 @@ class ShapeDiffDataset(Dataset):
                                                                                 files.h5
         :param object_id:
         """
-        self.root_path = root_path
-        if val:
-            self.root_path += 'val'
-        else:
-            self.root_path += 'train'
-
-        self.replace_dir = 'partial_sub_group'
-        self.partial_path = os.path.join(self.root_path, self.replace_dir, object_id) + "/"
-        self.fn_list = os.listdir(self.partial_path)
+        self.path = path
+        self.bins = bins
+        self.dev = dev
+        self.fn_list = os.listdir(self.path)
 
     def __len__(self):
         return len(self.fn_list)
 
     def __getitem__(self, idx):
-        in_path = os.path.join(self.partial_path, self.fn_list[idx])
-        label_path = in_path.replace(self.replace_dir, 'hist_labels')
-        diff_path = in_path.replace(self.replace_dir, 'diff')
+        in_path = os.path.join(self.path, self.fn_list[idx])
 
-        x = load_single_file(in_path)
-        h = load_single_file(label_path, "hist")
-        e = load_single_file(label_path, "edges")
-        d = load_single_file(diff_path)
+        x_complete = load_single_file(in_path)
+        x_partial = create_partial_from_complete(x_complete)
+        x_diff = create_diff_point_cloud(x_complete, x_partial)
+        H, edges = create_hist_labels(x_diff, self.bins)
 
-        return torch.tensor(x).to(dev), torch.tensor(h).to(dev), \
-               torch.tensor(e).to(dev), torch.tensor(d).to(dev)
+        return x_partial.to(self.dev), torch.tensor(x_diff).to(self.dev), torch.tensor(H).to(self.dev)
 
 
 if __name__ == '__main__':
-    # train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/'
-    # obj_id = '03001627'
+    train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/train/gt/03001627'
 
-    # shapenet = ShapeDiffDataset(train_path, obj_id)
-    # x_partial, hist, edges, x_diff = shapenet[0]
-    # plot_pc([x_partial, x_diff], colors=("black", "red"))
-
-    # x = np.random.rand(25) * 10
-    # y = np.random.rand(25) * 10
-    # r = (0, 10)
-    # h, e = np.histogramdd((x, y), bins=10, range=(r, r))
-    # mesh = np.meshgrid(e[0][0:10, ], e[1][0:10, ])
-    # h_ind = h > 0
-
-    # fig, ax = plt.subplots(1, figsize=(8, 6))
-    # grid_x_ticks_major = np.arange(0, 11, 1)
-    # grid_y_ticks_major = np.arange(0, 11, 1)
-    # ax.set_xticks(grid_x_ticks_major)
-    # ax.set_yticks(grid_y_ticks_major)
-    #
-    # ax.scatter(x, y, s=4)
-    # ax.scatter(mesh[0][h_ind.T] , mesh[1][h_ind.T])
-    # plt.grid(b=True, which='both')
-    # print(h.T)
-
-    GT_PATH = "C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\val\\gt\\03636649\\"
-    data_writer(GT_PATH)
-    data_writer(GT_PATH.replace("val", 'train'))
-
-    # # expend
-    # mesh = np.meshgrid(edges[0][0:10], edges[1][0:10], edges[2][0:10])
-
-    # ax = set_fig(edges)
-    # plot_mesh(ax, mesh[1][h_ind], mesh[0][h_ind], mesh[2][h_ind], ivl=0.2, col="red") #gt box
-    # ax.scatter(x_diff[:, 0], x_diff[:, 1], x_diff[:, 2], s=4, color="grey")  # gt diff
-    #
-    # plt.grid(b=True, which='both')
+    shapenet = ShapeDiffDataset(train_path, 20)
+    x_partial, x_diff, hist = shapenet[0]
+    plot_pc([x_partial, x_diff], colors=("black", "red"))

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class RegularizedClip(Module):
-    def __init__(self, lower, upper, coeff=2., method="abs"):
+    def __init__(self, lower, upper, coeff, method="abs"):
         super(RegularizedClip, self).__init__()
         assert method in ["abs", "square"]
         self.method = method
@@ -35,19 +35,20 @@ class RegularizedClip(Module):
 if __name__ == "__main__":
     import numpy as np
     x = torch.randn([1, 10, 1])
-    rc = RegularizedClip(coeff=5., method="square")
+    rc = RegularizedClip(coeff=1., lower=x-0.1, upper=x+0.1)
 
     d = torch.nn.Conv1d(10, 10, 1, )
     d.weight.data.zero_()
     d.bias.data[...] = torch.linspace(0, 10, 10)
     y = d(x)
 
-    z = rc(y, 3., 7.)
+    z = rc(y)
     o = z.sum()
     reg = rc.loss
     o += reg
 
-    # d.zero_grad()
-    # o.backward()
+    d.zero_grad()
+    o.backward()
 
-    print(d.bias.grad.reshape(-1))
+    # print(d.bias.grad.reshape(-1))
+    print(reg)

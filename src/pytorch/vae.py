@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch
 # from src.dataset.data_utils import plot_pc
-from src.dataset.shapenet import ShapeDiffDataset
+from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.region_select import FilterLocalization
 from src.pytorch.pointnet import PointNetDenseCls, PointNetCls
 from src.pytorch.range_bounds import RegularizedClip
@@ -41,7 +41,7 @@ class Encoder(nn.Module):
 
 
 class VAELoss(nn.Module):
-    def __init__(self, cd_coeff=5.):
+    def __init__(self, cd_coeff):
         """
 
         :param coeff: list in length 3
@@ -73,20 +73,30 @@ class VAELoss(nn.Module):
 
 class VariationalAutoEncoder(nn.Module):
 
-    def __init__(self, num_cubes, dev, num_sample_cube=20):
+    def __init__(self, num_voxels, dev, voxel_sample, cf_coeff,
+                 threshold, rc_coeff, bce_coeff, regular_method):
         """
 
-        :param num_cubes: cube resolution float
-        :param threshold: minimum probability to consider as part of the cover of the diff region
-        :param num_sample_cube: how many samples to sample per cube
+        :param num_voxels:
+        :param dev:
+        :param voxel_sample:
+        :param cf_coeff:
+        :param threshold:
+        :param rc_coeff:
+        :param bce_coeff:
+        :param regular_method:
         """
         super(VariationalAutoEncoder, self).__init__()
 
-        self.num_cubes = num_cubes
-        self.n_bins = int(round(num_cubes ** (1. / 3.)))
-
-        self.num_sample_cube = num_sample_cube
+        self.num_voxels = num_voxels
+        self.n_bins = int(round(num_voxels ** (1. / 3.)))
+        self.rc_coeff = rc_coeff
+        self.bce_coeff = bce_coeff
+        self.cd_coeff = cf_coeff
+        self.threshold = threshold
+        self.num_sample_cube = voxel_sample
         self.dev = dev
+        self.regular_method = regular_method
 
         self.mu = None
         self.sigma = None
@@ -101,10 +111,11 @@ class VariationalAutoEncoder(nn.Module):
         xv1, yv1, zv1 = torch.meshgrid(e1, e1, e1)  # each is (20,20,20)
         self.upper_bound = torch.stack((xv1, yv1, zv1), dim=3).double().to(dev)
 
-        self.encoder = Encoder(num_cubes=num_cubes)
-        self.rc = RegularizedClip(lower=self.lower_bound, upper=self.upper_bound, coeff=0.5, method="square")
-        self.fl = FilterLocalization()
-        self.vloss = VAELoss()
+        self.encoder = Encoder(num_cubes=self.num_voxels)
+        self.fl = FilterLocalization(coeff=self.bce_coeff, threshold=self.threshold)
+        self.rc = RegularizedClip(lower=self.lower_bound, upper=self.upper_bound, coeff=self.rc_coeff,
+                                  method=self.regular_method)
+        self.vloss = VAELoss(cd_coeff=self.cd_coeff)
 
     def _reparameterize(self):
         """
@@ -118,7 +129,7 @@ class VariationalAutoEncoder(nn.Module):
         :return: Float tensor  in torch.Size([bs, num_samples, 3])
         """
 
-        vector_size = (self.mu.shape[0], self.num_cubes, self.num_sample_cube, 3)
+        vector_size = (self.mu.shape[0], self.num_voxels, self.num_sample_cube, 3)
 
         # sample random standard
         eps = torch.randn(vector_size).to(self.dev)

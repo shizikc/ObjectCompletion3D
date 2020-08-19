@@ -3,7 +3,7 @@ import torch.nn as nn
 
 class FilterLocalization(nn.Module):
 
-    def __init__(self, coeff=2., threshold=0.01):
+    def __init__(self, coeff, threshold):
         super(FilterLocalization, self).__init__()
 
         self.bce_loss = nn.BCELoss(reduction='mean')
