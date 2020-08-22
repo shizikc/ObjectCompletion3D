@@ -67,7 +67,7 @@ if args.eval:
 
 # Define the Model
 def get_model():
-    vae = VariationalAutoEncoder(num_voxels=bins ** 3, dev=dev, voxel_sample=20, cf_coeff=cf_coeff,
+    vae = VariationalAutoEncoder(n_bins=bins, dev=dev, voxel_sample=20, cf_coeff=cf_coeff,
                                  threshold=threshold, rc_coeff=rc_coeff, bce_coeff=bce_coeff,
                                  regular_method=regular_method).double()
     return vae.to(dev), opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))

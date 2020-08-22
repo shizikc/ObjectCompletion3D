@@ -67,3 +67,10 @@ def plot_pc(pc_lst, colors, show=True, title=""):
         _plot_layer(pl, colors[i])
     if show:
         plt.show()
+
+def plot_pc_mayavi(pc_lst, colors, show=True, title=""):
+    for pc, color in zip(pc_lst, colors):
+        mlab.points3d(*pc.T, color=color)
+    if show:
+        mlab.show()
+
