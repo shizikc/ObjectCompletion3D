@@ -14,6 +14,7 @@ from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.region_select import FilterLocalization
 from src.pytorch.pointnet import PointNetDenseCls, PointNetCls
 from src.pytorch.range_bounds import RegularizedClip
+from src.pytorch.pctools import get_voxel_centers
 
 
 class Encoder(nn.Module):
@@ -77,7 +78,7 @@ class VariationalAutoEncoder(nn.Module):
                  threshold, rc_coeff, bce_coeff, regular_method):
         """
 
-        :param num_voxels:
+        :param n_bins:
         :param dev:
         :param voxel_sample:
         :param cf_coeff:
@@ -102,14 +103,12 @@ class VariationalAutoEncoder(nn.Module):
         self.sigma = None
         self.probs = None
 
-        e0 = torch.arange(-1, 1, 2 / self.n_bins).detach()
-        e1 = e0 + 2 / self.n_bins
-
-        xv0, yv0, zv0 = torch.meshgrid(e0, e0, e0)  # each is (20,20,20)
-        self.lower_bound = torch.stack((xv0, yv0, zv0), dim=3).double().to(dev)
-
-        xv1, yv1, zv1 = torch.meshgrid(e1, e1, e1)  # each is (20,20,20)
-        self.upper_bound = torch.stack((xv1, yv1, zv1), dim=3).double().to(dev)
+        # e0 = torch.arange(-1, 1, 2 / self.n_bins).detach()
+        # e1 = e0 + 2 / self.n_bins
+        self.voxel_centers = get_voxel_centers(self.n_bins).to(dev)
+        voxel_radius = 1 / self.n_bins
+        self.lower_bound = self.voxel_centers - voxel_radius
+        self.upper_bound = self.voxel_centers + voxel_radius
 
         self.encoder = Encoder(num_cubes=self.num_voxels)
 

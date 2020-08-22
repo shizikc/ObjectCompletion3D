@@ -7,8 +7,10 @@ import h5py
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+import numbers
 
 from src.dataset.data_utils import plot_pc
+from src.dataset.data_utils import plot_pc_mayavi
 
 
 logging.getLogger().setLevel(logging.INFO)
@@ -98,14 +100,15 @@ def create_diff_point_cloud(pc1, pc2):
     return pc1[indices]
 
 
-def create_partial_from_complete(complete):
+def create_partial_from_complete(complete, rng=None):
     """
     create a partial object with 70%-85% unique points.
     The returned object is then added with randomly duplicated points to contain exactly 1740 points
     :param complete:
     :return:
     """
-    rng = np.random.default_rng()
+    if rng is None:
+        rng = np.random.default_rng()
     s = 0
     mn, mx = complete.min(), complete.max()
     # 70% (int(0.7 * 2048)=1433) < |partial object| < 85% (int(0.85 * 2048)=1740)
@@ -119,10 +122,48 @@ def create_partial_from_complete(complete):
     return torch.tensor(np.concatenate((x_partial_tmp, x_partial_tmp[idx, :])))
 
 
+def create_partial_from_complete_v2(complete, partial_size=0.2, rng=None):
+    """
+    create a partial object
+    The returned object is then added with randomly duplicated points to contain exactly 1740 points
+    :param complete:
+    :return:
+    """
+    def ratio2int(r):
+        return (np.array(r) * len(complete)).round().astype(np.int32)
+
+    def normalize_size(s):
+        s = np.array(s)
+        if s.shape not in  [(), (2,)]:
+            raise ValueError("Partial size %$ format not supported")
+        if not issubclass(s.dtype.type, numbers.Integral):
+            s = ratio2int(s)
+        return s
+
+    if rng is None:
+        rng = np.random.default_rng()
+
+    partial_size = normalize_size(partial_size)
+    # project points on a direction, thus creating order
+    normal = rng.randn(3)
+    normal /= np.linalg.norm(normal)
+    proj = complete.dot(normal)
+    sort_inds = np.argsort(proj)
+    if partial_size.shape == ():
+        take = partial_size
+    else:
+        take = rng.randint(partial_size[0], partial_size[1] + 1)
+    partial = complete[sort_inds[:take]]
+    diff = complete[sort_inds[take:]]
+
+    # return torch.tensor(partial), torch.tensor(diff)
+    return partial, diff
+
+
 class ShapeDiffDataset(Dataset):
     """shapenet partial dataset"""
 
-    def __init__(self, path, bins, dev):
+    def __init__(self, path, bins, dev, partial_size=256, seed=None):
         """
 
         :param root_path: string : Root directory of structure: root
@@ -138,6 +179,8 @@ class ShapeDiffDataset(Dataset):
         self.bins = bins
         self.dev = dev
         self.fn_list = os.listdir(self.path)
+        self.rng = np.random.RandomState(seed)
+        self.partial_size = partial_size
 
     def __len__(self):
         return len(self.fn_list)
@@ -146,16 +189,25 @@ class ShapeDiffDataset(Dataset):
         in_path = os.path.join(self.path, self.fn_list[idx])
 
         x_complete = load_single_file(in_path)
-        x_partial = create_partial_from_complete(x_complete)
-        x_diff = create_diff_point_cloud(x_complete, x_partial)
+        x_complete *= 2.
+        x_partial, x_diff = create_partial_from_complete_v2(x_complete,
+                                                            partial_size=self.partial_size,
+                                                            rng=self.rng)
         H, edges = create_hist_labels(x_diff, self.bins)
 
-        return x_partial.to(self.dev), torch.tensor(x_diff).to(self.dev), torch.tensor(H).to(self.dev)
+        return torch.tensor(x_partial).to(self.dev), torch.tensor(x_diff).to(self.dev), torch.tensor(H).to(self.dev)
+
 
 
 if __name__ == '__main__':
-    train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/train/gt/03001627'
+    # train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/train/gt/03001627'
+    train_path = '/home/yonatan/data/oc3d/chair/train/gt/03001627'
 
-    shapenet = ShapeDiffDataset(train_path, 20)
+    shapenet = ShapeDiffDataset(train_path,
+                                bins=5,
+                                dev='cpu',
+                                partial_size=256,
+                                seed=42
+                                )
     x_partial, x_diff, hist = shapenet[0]
-    plot_pc([x_partial, x_diff], colors=("black", "red"))
+    # plot_pc_mayavi([x_partial, x_diff], colors=((1., 1., 1.), (1., 0., 0.)))
