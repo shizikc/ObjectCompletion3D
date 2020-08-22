@@ -120,7 +120,7 @@ def fit(epochs, model, op):
         #     *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=i)
         #       for i, (x, d, h) in enumerate(train_loader)]
         # )
-        print("**" + str(model.mu))
+        print(model.mu)
         # train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, loss))
 
@@ -146,7 +146,7 @@ def fit(epochs, model, op):
 def init_weights(m):
     if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d):
         torch.nn.init.zeros_(m.weight)
-        m.bias.data.fill_(0)
+        m.bias.data.fill_(1 / bins)
 
 
 if __name__ == '__main__':
@@ -155,6 +155,7 @@ if __name__ == '__main__':
         # run model
         model, opt = get_model()
         model.apply(init_weights)
+
         # train model
         fit(args.max_epoch, model, opt)
 

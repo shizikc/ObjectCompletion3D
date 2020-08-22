@@ -107,8 +107,10 @@ class VariationalAutoEncoder(nn.Module):
         # e1 = e0 + 2 / self.n_bins
         self.voxel_centers = get_voxel_centers(self.n_bins).to(dev)
         voxel_radius = 1 / self.n_bins
+
         self.lower_bound = self.voxel_centers - voxel_radius
         self.upper_bound = self.voxel_centers + voxel_radius
+
 
         self.encoder = Encoder(num_cubes=self.num_voxels)
 

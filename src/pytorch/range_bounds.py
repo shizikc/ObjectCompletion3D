@@ -12,11 +12,10 @@ class RegularizedClip(Module):
         self.lower = lower
         self.upper = upper
         self.loss = None
-        self.y = None
 
     def forward(self, x):
-        c = torch.max(x, self.lower)
-        c = torch.min(c, self.upper).view(1, -1)
+        c = torch.max(x, self.lower.view(x.shape))
+        c = torch.min(c, self.upper.view(x.shape)).view(1, -1)
 
         r = self.upper - self.lower
 
