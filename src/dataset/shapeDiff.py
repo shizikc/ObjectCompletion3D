@@ -10,6 +10,7 @@ from torch.utils.data import Dataset
 import numbers
 
 from src.dataset.data_utils import plot_pc
+from src.dataset.data_utils import plot_pc_mayavi
 
 
 logging.getLogger().setLevel(logging.INFO)
@@ -188,6 +189,7 @@ class ShapeDiffDataset(Dataset):
         in_path = os.path.join(self.path, self.fn_list[idx])
 
         x_complete = load_single_file(in_path)
+        x_complete *= 2.
         x_partial, x_diff = create_partial_from_complete_v2(x_complete,
                                                             partial_size=self.partial_size,
                                                             rng=self.rng)
@@ -208,4 +210,4 @@ if __name__ == '__main__':
                                 seed=42
                                 )
     x_partial, x_diff, hist = shapenet[0]
-    plot_pc([x_partial, x_diff], colors=("black", "red"))
+    # plot_pc_mayavi([x_partial, x_diff], colors=((1., 1., 1.), (1., 0., 0.)))
