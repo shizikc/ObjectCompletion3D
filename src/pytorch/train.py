@@ -1,8 +1,7 @@
 import argparse
 import logging
 from pathlib import Path
-
-import numpy as np
+import torch.nn as nn
 
 import torch
 import torch.optim as opt
@@ -67,7 +66,7 @@ if args.eval:
 
 # Define the Model
 def get_model():
-    vae = VariationalAutoEncoder(num_voxels=bins ** 3, dev=dev, voxel_sample=20, cf_coeff=cf_coeff,
+    vae = VariationalAutoEncoder(n_bins=bins, dev=dev, voxel_sample=20, cf_coeff=cf_coeff,
                                  threshold=threshold, rc_coeff=rc_coeff, bce_coeff=bce_coeff,
                                  regular_method=regular_method).double()
     return vae.to(dev), opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
@@ -98,7 +97,7 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     for m in model.modules():
         if hasattr(m, 'loss'):
             loss += m.loss
-            print("*** "  + str(m) +" : " + str(m.loss))
+            print("*** " + str(m) + " : " + str(m.loss))
 
     if opt is not None:
         # training
@@ -106,22 +105,22 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
         opt.step()
         opt.zero_grad()
 
-    return loss.item() #, input.shape[0]
+    return loss.item()  # , input.shape[0]
 
 
 def fit(epochs, model, op):
     x, d, h = next(iter(train_loader))
 
     for epoch in range(epochs):
-
         model.train()
-        loss = loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=epochs)
+        loss = loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op,
+                          idx=epochs)
 
         # losses, nums = zip(
         #     *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=i)
         #       for i, (x, d, h) in enumerate(train_loader)]
         # )
-
+        print("**" + str(model.mu))
         # train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, loss))
 
@@ -144,12 +143,18 @@ def fit(epochs, model, op):
         #     torch.save(model.state_dict(), model_path)
 
 
+def init_weights(m):
+    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d):
+        torch.nn.init.zeros_(m.weight)
+        m.bias.data.fill_(0)
+
+
 if __name__ == '__main__':
 
     if args.train:
         # run model
         model, opt = get_model()
-
+        model.apply(init_weights)
         # train model
         fit(args.max_epoch, model, opt)
 

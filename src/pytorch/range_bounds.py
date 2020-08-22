@@ -12,16 +12,19 @@ class RegularizedClip(Module):
         self.lower = lower
         self.upper = upper
         self.loss = None
+        self.y = None
 
     def forward(self, x):
-
-        c = torch.min(x, self.lower)
-        c = torch.max(c, self.upper).view(1, -1)
+        c = torch.max(x, self.lower)
+        c = torch.min(c, self.upper).view(1, -1)
 
         r = self.upper - self.lower
+
         mean = (self.upper + self.lower) * 0.5
-        y = (x - mean) / r * 2. # normelize - mean 0
-        y = F.relu(torch.abs(y) - 1.) # y in [-1,1]
+        y = (x - mean) / r * 2.  # normalize - mean 0
+
+        y = F.relu(torch.abs(y) - r)  # y punishes outside of [-1, 1]
+
         if self.method == "square":
             y = torch.pow(y, 2.)
         self.loss = y.sum() * self.coeff
@@ -29,26 +32,33 @@ class RegularizedClip(Module):
         return c
 
 
-
-
-
 if __name__ == "__main__":
-    import numpy as np
-    x = torch.randn([1, 10, 1])
-    rc = RegularizedClip(coeff=1., lower=x-0.1, upper=x+0.1)
+    e0 = torch.arange(-1, 1, 1)
+    e1 = e0 + 1
 
-    d = torch.nn.Conv1d(10, 10, 1, )
-    d.weight.data.zero_()
-    d.bias.data[...] = torch.linspace(0, 10, 10)
-    y = d(x)
+    xv0, yv0, zv0 = torch.meshgrid(e0, e0, e0)  # each is (20,20,20)
+    lower_bound = torch.stack((xv0, yv0, zv0), dim=3).float()
 
-    z = rc(y)
-    o = z.sum()
-    reg = rc.loss
-    o += reg
+    xv1, yv1, zv1 = torch.meshgrid(e1, e1, e1)  # each is (20,20,20)
+    upper_bound = torch.stack((xv1, yv1, zv1), dim=3).float()
 
-    d.zero_grad()
-    o.backward()
+    x = torch.randn(upper_bound.shape)
 
-    # print(d.bias.grad.reshape(-1))
-    print(reg)
+    rc = RegularizedClip(coeff=1., lower=lower_bound, upper=upper_bound)
+    c = rc(x)
+
+    # d = torch.nn.Conv1d(10, 10, 1)
+    # d.weight.data.zero_()
+    # d.bias.data[...] = torch.linspace(0, 10, 10)
+    #
+    # y = d(x)
+    # z = rc(y)
+    # o = z.sum()
+    # reg = rc.loss
+    # o += reg
+    #
+    # d.zero_grad()
+    # o.backward()
+    #
+    # # print(d.bias.grad.reshape(-1))
+    # print(reg)

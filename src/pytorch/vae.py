@@ -73,7 +73,7 @@ class VAELoss(nn.Module):
 
 class VariationalAutoEncoder(nn.Module):
 
-    def __init__(self, num_voxels, dev, voxel_sample, cf_coeff,
+    def __init__(self, n_bins, dev, voxel_sample, cf_coeff,
                  threshold, rc_coeff, bce_coeff, regular_method):
         """
 
@@ -88,8 +88,8 @@ class VariationalAutoEncoder(nn.Module):
         """
         super(VariationalAutoEncoder, self).__init__()
 
-        self.num_voxels = num_voxels
-        self.n_bins = int(round(num_voxels ** (1. / 3.)))
+        self.num_voxels = n_bins ** 3
+        self.n_bins = n_bins
         self.rc_coeff = rc_coeff
         self.bce_coeff = bce_coeff
         self.cd_coeff = cf_coeff
@@ -112,6 +112,7 @@ class VariationalAutoEncoder(nn.Module):
         self.upper_bound = torch.stack((xv1, yv1, zv1), dim=3).double().to(dev)
 
         self.encoder = Encoder(num_cubes=self.num_voxels)
+
         self.fl = FilterLocalization(coeff=self.bce_coeff, threshold=self.threshold)
         self.rc = RegularizedClip(lower=self.lower_bound, upper=self.upper_bound, coeff=self.rc_coeff,
                                   method=self.regular_method)
@@ -152,51 +153,48 @@ class VariationalAutoEncoder(nn.Module):
         ##  clipping mu and calculating regulerize loss factor
         self.mu = self.rc(self.mu.view(self.n_bins, self.n_bins, self.n_bins, 3))
 
-        z = self._reparameterize()
+        # distributing standard normal samples to voxels
+        z = self._reparameterize()  # torch.Size([1, 125, 20, 3])
 
-        out = self.fl(self.probs, prob_target, z)
+        # out contains only high probability voxels
+        out = self.fl(self.probs, prob_target, z)  # torch.Size([1, 420, 3])
 
+        # chamfer distance between hols point clouds
         self.vloss(out, x_target)
 
         return out
 
 
+
 if __name__ == '__main__':
     bs = 1
     num_points = 250
-    resulotion = 20 ** 3
+    resulotion = 5
 
-    train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/'
-    # train_path = '/home/coopers/data/chair/'
-    obj_id = '03001627'
+    train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/train/gt/03001627'
 
-    shapenet = ShapeDiffDataset(train_path, obj_id)
+    shapenet = ShapeDiffDataset(train_path, bins=resulotion, dev='cpu')
 
     train_loader = torch.utils.data.DataLoader(shapenet, 1, shuffle=True)
 
-    x_partial, hist, edges, x_diff = next(iter(train_loader))
-
-    # in_data = Variable(torch.rand(bs, 3, num_points))
-    # gt_diff = Variable(torch.rand(bs, num_points, 3))
-    # gt_prob = Variable(torch.rand(bs, resulotion))
+    x_partial, x_diff, hist = next(iter(train_loader))
 
     ###########################################
     #
-    # encoder = Encoder(num_cubes=resulotion)
-    # probs, mu, scale = encoder(in_data)
-    #
-    # print('probs: ', probs.size())  # prob torch.Size([bs, 1000]) view(prob.shape[0], -1, 3)
-    # print('mu: ', mu.size())  # mu torch.Size([bs, 3000])
-    # print('scale: ', scale.size())  # scale torch.Size([bs, 9000])
+    encoder = Encoder(num_cubes=resulotion ** 3).double()
+    probs, mu, scale = encoder(x_partial.transpose(2, 1))
 
+    print('probs: ', probs.size())  # prob torch.Size([bs, 1000]) view(prob.shape[0], -1, 3)
+    print('mu: ', mu.size())  # mu torch.Size([bs, 3000])
+    print('scale: ', scale.size())  # scale torch.Size([bs, 9000])
     ###########################################
-
-    vae = VariationalAutoEncoder(num_cubes=resulotion, dev='cpu').double()
-
-    vae_out = vae(x_partial.transpose(2, 1), x_diff, hist.flatten())
-
-    print("full_out ", vae_out.shape)  # torch.Size([1, num_samples, 3])
-
+    #
+    # vae = VariationalAutoEncoder(num_cubes=resulotion, dev='cpu').double()
+    #
+    # vae_out = vae(x_partial.transpose(2, 1), x_diff, hist.flatten())
+    #
+    # print("full_out ", vae_out.shape)  # torch.Size([1, num_samples, 3])
+    #
     ###########################################
 
     #### plot centers ####
@@ -204,3 +202,4 @@ if __name__ == '__main__':
     #
     # z = vae._reparameterize()
     # print("params ", z.shape)  # torch.Size([1, 1000, 100, 3])
+
