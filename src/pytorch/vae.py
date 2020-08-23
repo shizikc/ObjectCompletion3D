@@ -111,7 +111,6 @@ class VariationalAutoEncoder(nn.Module):
         self.lower_bound = self.voxel_centers - voxel_radius
         self.upper_bound = self.voxel_centers + voxel_radius
 
-
         self.encoder = Encoder(num_cubes=self.num_voxels)
 
         self.fl = FilterLocalization(coeff=self.bce_coeff, threshold=self.threshold)
@@ -166,7 +165,6 @@ class VariationalAutoEncoder(nn.Module):
         return out
 
 
-
 if __name__ == '__main__':
     bs = 1
     num_points = 250
@@ -203,4 +201,3 @@ if __name__ == '__main__':
     #
     # z = vae._reparameterize()
     # print("params ", z.shape)  # torch.Size([1, 1000, 100, 3])
-
