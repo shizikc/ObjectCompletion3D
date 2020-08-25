@@ -74,3 +74,27 @@ def plot_pc_mayavi(pc_lst, colors, show=True, title=""):
     if show:
         mlab.show()
 
+
+def vis_prediction(pred_points=None,
+                   gt_partial=None,
+                   gt_pred=None,
+                   voxel_centers=None,
+                   voxel_probs=None,
+                   # threshold=None,
+                   save_to=None):
+    if pred_points is not None:
+        pred_points = pred_points.reshape(-1, 3)
+        mlab.points3d(*pred_points.T, scale_factor=0.02, color=(0.1, 0.9, 0.1))
+
+    if gt_partial is not None:
+        gt_partial = gt_partial.reshape(-1, 3)
+        mlab.points3d(*gt_partial.T, scale_factor=0.05, color=(1., 0., 0.), opacity=0.7)
+
+    if gt_partial is not None:
+        gt_partial = gt_partial.reshape(-1, 3)
+        mlab.points3d(*gt_partial.T, scale_factor=0.05, color=(1., 0., 0.), opacity=0.7)
+
+    if voxel_probs is not None:
+        assert voxel_centers is not None
+
+        mlab.points3d(*gt_partial.T, scale_factor=0.05, color=(1., 0., 0.), opacity=0.7)
