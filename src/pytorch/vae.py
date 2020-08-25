@@ -119,12 +119,12 @@ class VariationalAutoEncoder(nn.Module):
                                   method=self.regular_method)
         self.vloss = VAELoss(cd_coeff=self.cd_coeff)
 
-        self.apply(self._init_weights)
+        # self.apply(self._init_weights)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d):
             torch.nn.init.zeros_(m.weight)
-            m.bias.data.fill_(0) #1 / self.n_bins)
+            m.bias.data.fill_(0) # 1 / self.n_bins)
 
     def _reparameterize(self, center, scale):
         """

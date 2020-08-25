@@ -4,28 +4,30 @@ import torch.nn.functional as F
 
 
 class RegularizedClip(Module):
-    def __init__(self, lower, upper, coeff, method="abs"):
+    def __init__(self, coeff, lower=-1., upper=1., method="abs"):
         super(RegularizedClip, self).__init__()
         assert method in ["abs", "square"]
         self.method = method
         self.coeff = coeff
         self.lower = lower
         self.upper = upper
+
         self.loss = None
 
     def forward(self, x):
+        if not isinstance(self.upper, float):
+            x = x.view(self.upper.shape)
 
-        x = x.view(self.upper.shape)
-
+        # clip x in [-lower, upper]
         c = torch.max(x, self.lower)
         c = torch.min(c, self.upper).view(1, -1)
 
         r = self.upper - self.lower
 
         mean = (self.upper + self.lower) * 0.5
-        y = (x - mean) / r * 2.  # normalize - mean 0
+        y = (x - mean) / r * 2.  # normalize - mean r
 
-        y = F.relu(torch.abs(y) - r)  # y punishes outside of [-1, 1]
+        y = F.relu(torch.abs(y) -  r / 2)  # y punishes outside of [-1, 1]
 
         if self.method == "square":
             y = torch.pow(y, 2.)

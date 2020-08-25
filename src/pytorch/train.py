@@ -22,7 +22,7 @@ parser.add_argument('--model_path',
 parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
 # default='/home/coopers/data/chair/')
-parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
+parser.add_argument('--max_epoch', type=int, default=50, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
@@ -31,8 +31,8 @@ parser.add_argument('--object_id', default='04256520', help='object id = sub fol
 parser.add_argument('--regular_method', default='abs')
 parser.add_argument('--threshold', default=0.01, help='cube probability threshold')
 parser.add_argument('--cf_coeff', default=1)
-parser.add_argument('--bce_coeff', default=1)
-parser.add_argument('--rc_coeff', default=1)
+parser.add_argument('--bce_coeff', default=100)
+parser.add_argument('--rc_coeff', default=0.01)
 args = parser.parse_args()
 
 # Model Life-Cycle
