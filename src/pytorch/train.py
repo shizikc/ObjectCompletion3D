@@ -155,9 +155,9 @@ if __name__ == '__main__':
                         model.voxel_centers.detach().numpy()],
                        colors=((1., 1., 1.), (0., 0., 1.)))
 
-        pred =  model(x.transpose(2,1), d, h.flatten()).detach().numpy()
-        plot_pc_mayavi([x.detach().numpy(), pred],
-                       colors=[(0., 1., 1.) , (1., 0., 0.)])
+        # pred =  model(x.transpose(2,1), d, h.flatten()).detach().numpy()
+        # plot_pc_mayavi([x.detach().numpy(), pred],
+        #                colors=[(0., 1., 1.) , (1., 0., 0.)])
 
     #                         d.detach().numpy() , (1., 0., 0.)
     logging.info("finish training.")
