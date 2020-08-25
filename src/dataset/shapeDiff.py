@@ -27,7 +27,7 @@ def load_single_file(path, data_name="data"):
 
 
 # UTILITY FUNCTIONS TO CREATE AND SAVE DATASETS#
-def data_writer(dirname, n_files=-1):
+def data_writer(dirname, n_files=-1, bins=5):
     """
     create a training data set by intersecting the complete object with a hyperplane,
     such that the partial object obtained is 70%-85% of the complete.
@@ -65,7 +65,7 @@ def data_writer(dirname, n_files=-1):
         with h5py.File(fn.replace('gt', 'diff'), 'w') as hf:
             hf.create_dataset("data", data=x_diff)
         # create labels
-        H, edges = create_hist_labels(x_diff, args.bins)
+        H, edges = create_hist_labels(x_diff, bins)
         # print("edges: ", edges.shape)
         # save labels
         with h5py.File(fn.replace('gt', 'hist_labels'), 'w') as hf:
@@ -195,7 +195,8 @@ class ShapeDiffDataset(Dataset):
                                                             rng=self.rng)
         H, edges = create_hist_labels(x_diff, self.bins)
 
-        return torch.tensor(x_partial).to(self.dev), torch.tensor(x_diff).to(self.dev), torch.tensor(H).to(self.dev)
+        return torch.tensor(x_partial).to(self.dev).float(), torch.tensor(x_diff).to(self.dev).float(),\
+               torch.tensor(H).to(self.dev).float()
 
 
 

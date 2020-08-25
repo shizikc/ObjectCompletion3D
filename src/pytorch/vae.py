@@ -1,15 +1,11 @@
-from builtins import int
-
 import logging
 
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
 
 import torch.nn.functional as F
 
 from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch
-# from src.dataset.data_utils import plot_pc
 from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.region_select import FilterLocalization
 from src.pytorch.pointnet import PointNetDenseCls, PointNetCls
@@ -39,6 +35,14 @@ class Encoder(nn.Module):
         h1 = self.dens(x)
 
         return F.softmax(self.cls_prob(h1), dim=1), self.fc_mu(h1), self.fc_mat(h1)
+
+
+# class _Loss_(nn.Module):
+#     def __init__(self, coeff):
+#         """
+#
+#         :param coeff:
+#         """
 
 
 class VAELoss(nn.Module):
@@ -103,15 +107,14 @@ class VariationalAutoEncoder(nn.Module):
         self.sigma = None
         self.probs = None
 
-        # e0 = torch.arange(-1, 1, 2 / self.n_bins).detach()
-        # e1 = e0 + 2 / self.n_bins
+
         self.voxel_centers = get_voxel_centers(self.n_bins).to(dev)
         voxel_radius = 1 / self.n_bins
 
         self.lower_bound = self.voxel_centers - voxel_radius
         self.upper_bound = self.voxel_centers + voxel_radius
 
-        self.encoder = Encoder(num_cubes=self.num_voxels)
+        self.encoder = Encoder(num_cubes=self.num_voxels).float()
 
         self.fl = FilterLocalization(coeff=self.bce_coeff, threshold=self.threshold)
         self.rc = RegularizedClip(lower=self.lower_bound, upper=self.upper_bound, coeff=self.rc_coeff,
@@ -147,6 +150,7 @@ class VariationalAutoEncoder(nn.Module):
         :param x: partial object point cloud
         :return:
         """
+        x = x.float()
 
         self.probs, self.mu, self.sigma = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
 
@@ -180,7 +184,7 @@ if __name__ == '__main__':
 
     ###########################################
     #
-    encoder = Encoder(num_cubes=resulotion ** 3).double()
+    encoder = Encoder(num_cubes=resulotion ** 3)
     probs, mu, scale = encoder(x_partial.transpose(2, 1))
 
     print('probs: ', probs.size())  # prob torch.Size([bs, 1000]) view(prob.shape[0], -1, 3)
@@ -188,7 +192,7 @@ if __name__ == '__main__':
     print('scale: ', scale.size())  # scale torch.Size([bs, 9000])
     ###########################################
     #
-    # vae = VariationalAutoEncoder(num_cubes=resulotion, dev='cpu').double()
+    # vae = VariationalAutoEncoder(num_cubes=resulotion, dev='cpu')
     #
     # vae_out = vae(x_partial.transpose(2, 1), x_diff, hist.flatten())
     #

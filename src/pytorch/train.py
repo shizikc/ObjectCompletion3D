@@ -68,7 +68,8 @@ if args.eval:
 def get_model():
     vae = VariationalAutoEncoder(n_bins=bins, dev=dev, voxel_sample=20, cf_coeff=cf_coeff,
                                  threshold=threshold, rc_coeff=rc_coeff, bce_coeff=bce_coeff,
-                                 regular_method=regular_method).double()
+                                 regular_method=regular_method)
+
     return vae.to(dev), opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
 
 
@@ -120,7 +121,6 @@ def fit(epochs, model, op):
         #     *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=i)
         #       for i, (x, d, h) in enumerate(train_loader)]
         # )
-        print(model.mu)
         # train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, loss))
 
@@ -143,10 +143,6 @@ def fit(epochs, model, op):
         #     torch.save(model.state_dict(), model_path)
 
 
-def init_weights(m):
-    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d):
-        torch.nn.init.zeros_(m.weight)
-        m.bias.data.fill_(1 / bins)
 
 
 if __name__ == '__main__':
@@ -154,7 +150,7 @@ if __name__ == '__main__':
     if args.train:
         # run model
         model, opt = get_model()
-        model.apply(init_weights)
+
 
         # train model
         fit(args.max_epoch, model, opt)
