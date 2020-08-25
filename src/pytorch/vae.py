@@ -121,24 +121,23 @@ class VariationalAutoEncoder(nn.Module):
                                   method=self.regular_method)
         self.vloss = VAELoss(cd_coeff=self.cd_coeff)
 
-    def _reparameterize(self):
+    def _reparameterize(self, center, scale):
         """
             This reparameterization trick first generates a uniform distribution sample over the unit sphere,
              then shapes the distribution  with the mu and sigma from the encoder.
             This way, we can can calculate the gradient parameterized by this particular random instance.
 
-        :param mask:   boolean tensor  in torch.Size([bs, num_cubes])
         :param mu:  Float tensor  in torch.Size([bs, 3*num_cubes])
         :param sigma: Float tensor in torch.Size([bs, 3*num_cubes])
         :return: Float tensor  in torch.Size([bs, num_samples, 3])
         """
 
-        vector_size = (self.mu.shape[0], self.num_voxels, self.num_sample_cube, 3)
+        vector_size = (mu.shape[0], self.num_voxels, self.num_sample_cube, 3)
 
         # sample random standard
         eps = torch.randn(vector_size).to(self.dev)
-        eps *= self.sigma.view(self.sigma.shape[0], -1, 1, 3)
-        eps += self.mu.view(self.mu.shape[0], -1, 1, 3)
+        eps *= self.sigma.view(scale.shape[0], -1, 1, 3)
+        eps += self.mu.view(center.shape[0], -1, 1, 3)
 
         return eps
 
