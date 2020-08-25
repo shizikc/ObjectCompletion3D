@@ -115,7 +115,7 @@ class VariationalAutoEncoder(nn.Module):
 
         self.encoder = Encoder(num_cubes=self.num_voxels).float()
         self.fl = FilterLocalization(coeff=self.bce_coeff, threshold=self.threshold)
-        self.rc = RegularizedClip(lower=-0.5, upper=0.5, coeff=self.rc_coeff,
+        self.rc = RegularizedClip(lower=self.lower_bound, upper=self.upper_bound, coeff=self.rc_coeff,
                                   method=self.regular_method)
         self.vloss = VAELoss(cd_coeff=self.cd_coeff)
 
@@ -124,7 +124,7 @@ class VariationalAutoEncoder(nn.Module):
     def _init_weights(self, m):
         if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d):
             torch.nn.init.zeros_(m.weight)
-            m.bias.data.fill_(0) # 1 / self.n_bins)
+            m.bias.data.fill_(0)  # 1 / self.n_bins)
 
     def _reparameterize(self, center, scale):
         """
@@ -145,7 +145,6 @@ class VariationalAutoEncoder(nn.Module):
         eps += center.view(center.shape[0], -1, 1, 3)
 
         return eps
-
 
     def forward(self, x, x_target, prob_target):
         """

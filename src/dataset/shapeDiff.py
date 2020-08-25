@@ -9,9 +9,7 @@ import torch
 from torch.utils.data import Dataset
 import numbers
 
-from src.dataset.data_utils import plot_pc
-from src.dataset.data_utils import plot_pc_mayavi
-
+from src.pytorch.visualization import plot_pc_mayavi
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -157,7 +155,7 @@ def create_partial_from_complete_v2(complete, partial_size=0.2, rng=None):
     diff = complete[sort_inds[take:]]
 
     # return torch.tensor(partial), torch.tensor(diff)
-    return partial, diff
+    return diff, partial
 
 
 class ShapeDiffDataset(Dataset):
@@ -201,8 +199,8 @@ class ShapeDiffDataset(Dataset):
 
 
 if __name__ == '__main__':
-    # train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/train/gt/03001627'
-    train_path = '/home/yonatan/data/oc3d/chair/train/gt/03001627'
+    train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/train/gt/03001627'
+    # train_path = '/home/yonatan/data/oc3d/chair/train/gt/03001627'
 
     shapenet = ShapeDiffDataset(train_path,
                                 bins=5,
@@ -211,4 +209,4 @@ if __name__ == '__main__':
                                 seed=42
                                 )
     x_partial, x_diff, hist = shapenet[0]
-    # plot_pc_mayavi([x_partial, x_diff], colors=((1., 1., 1.), (1., 0., 0.)))
+    plot_pc_mayavi([x_partial, x_diff], colors=((1., 1., 1.), (1., 0., 0.)))

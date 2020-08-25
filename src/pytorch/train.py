@@ -6,9 +6,9 @@ import torch.nn as nn
 import torch
 import torch.optim as opt
 # from torch.utils.tensorboard import SummaryWriter
-from src.dataset.data_utils import plot_pc_mayavi
 from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.vae import VariationalAutoEncoder
+from src.pytorch.visualization import plot_pc_mayavi
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                     level=logging.INFO,
@@ -22,7 +22,7 @@ parser.add_argument('--model_path',
 parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
 # default='/home/coopers/data/chair/')
-parser.add_argument('--max_epoch', type=int, default=50, help='Epoch to run [default: 100]')
+parser.add_argument('--max_epoch', type=int, default=500, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
@@ -89,7 +89,7 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
 
     x_diff_pred = mdl(input, x_diff_target, prob_target)
 
-    if idx % 1000 == 1:
+    if idx % 50 == 1:
         logging.info("Finished " + str(idx) + " batches.")
 
     # loss = sum([m.loss for m in model.modules() if hasattr(m, 'loss')])
@@ -98,7 +98,6 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     for m in model.modules():
         if hasattr(m, 'loss'):
             loss += m.loss
-            print("*** " + str(m) + " : " + str(m.loss))
 
     if opt is not None:
         # training
@@ -134,13 +133,13 @@ def fit(epochs, model, op):
         # val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         # logging.info("Epoch : % 3d, Validation error : % 5.5f" % (epoch, val_loss))
         #
-        # if epoch == 0:
-        #     min_loss = val_loss
-        #
-        # if val_loss <= min_loss:
-        #     min_loss = val_loss
-        #     # temporary save model
-        #     torch.save(model.state_dict(), model_path)
+        if epoch == 0:
+            min_loss = loss
+
+        if loss <= min_loss:
+            min_loss = loss
+            # temporary save model
+            torch.save(model.state_dict(), model_path)
 
 
 if __name__ == '__main__':
@@ -152,7 +151,8 @@ if __name__ == '__main__':
         # train model
         fit(args.max_epoch, model, opt)
 
-        plot_pc_mayavi([model.mu[0].view(model.voxel_centers.shape).detach().numpy(), model.voxel_centers.detach().numpy()],
-                       colors=((1., 1., 1.), (1., 0., 1.)))
+        plot_pc_mayavi([model.mu[0].view(model.voxel_centers.shape).detach().numpy(),
+                        model.voxel_centers.detach().numpy()],
+                       colors=((1., 1., 1.), (0., 0., 1.)))
 
     logging.info("finish training.")
