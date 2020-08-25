@@ -31,7 +31,6 @@ def plot_mesh(ax, x, y, z, ivl, col="red"):
 
 
 def set_fig(edges):
-
     fig = plt.figure()
     ax = plt.axes(projection='3d')
     plt.xlim(-1.0, 1.0)
@@ -68,9 +67,9 @@ def plot_pc(pc_lst, colors, show=True, title=""):
     if show:
         plt.show()
 
-def plot_pc_mayavi(pc_lst, colors, show=True, title=""):
+
+def plot_pc_mayavi(pc_lst, colors, show=True):
     for pc, color in zip(pc_lst, colors):
         mlab.points3d(*pc.T, color=color)
     if show:
         mlab.show()
-

@@ -107,7 +107,6 @@ class VariationalAutoEncoder(nn.Module):
         self.sigma = None
         self.probs = None
 
-
         self.voxel_centers = get_voxel_centers(self.n_bins).to(dev)
         voxel_radius = 1 / self.n_bins
 
@@ -115,11 +114,17 @@ class VariationalAutoEncoder(nn.Module):
         self.upper_bound = self.voxel_centers + voxel_radius
 
         self.encoder = Encoder(num_cubes=self.num_voxels).float()
-
         self.fl = FilterLocalization(coeff=self.bce_coeff, threshold=self.threshold)
         self.rc = RegularizedClip(lower=self.lower_bound, upper=self.upper_bound, coeff=self.rc_coeff,
                                   method=self.regular_method)
         self.vloss = VAELoss(cd_coeff=self.cd_coeff)
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d):
+            torch.nn.init.zeros_(m.weight)
+            m.bias.data.fill_(0) #1 / self.n_bins)
 
     def _reparameterize(self, center, scale):
         """
@@ -132,12 +137,12 @@ class VariationalAutoEncoder(nn.Module):
         :return: Float tensor  in torch.Size([bs, num_samples, 3])
         """
 
-        vector_size = (mu.shape[0], self.num_voxels, self.num_sample_cube, 3)
+        vector_size = (center.shape[0], self.num_voxels, self.num_sample_cube, 3)
 
         # sample random standard
         eps = torch.randn(vector_size).to(self.dev)
-        eps *= self.sigma.view(scale.shape[0], -1, 1, 3)
-        eps += self.mu.view(center.shape[0], -1, 1, 3)
+        eps *= scale.view(scale.shape[0], -1, 1, 3)
+        eps += center.view(center.shape[0], -1, 1, 3)
 
         return eps
 
@@ -157,7 +162,7 @@ class VariationalAutoEncoder(nn.Module):
         self.mu = self.rc(self.mu.view(self.n_bins, self.n_bins, self.n_bins, 3))
 
         # distributing standard normal samples to voxels
-        z = self._reparameterize()  # torch.Size([1, 125, 20, 3])
+        z = self._reparameterize(self.mu, self.sigma)  # torch.Size([1, 125, 20, 3])
 
         # out contains only high probability voxels
         out = self.fl(self.probs, prob_target, z)  # torch.Size([1, 420, 3])

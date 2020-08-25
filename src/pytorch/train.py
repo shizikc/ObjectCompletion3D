@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch
 import torch.optim as opt
 # from torch.utils.tensorboard import SummaryWriter
-
+from src.dataset.data_utils import plot_pc_mayavi
 from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.vae import VariationalAutoEncoder
 
@@ -77,7 +77,7 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     """
 
     :param idx:
-    :param model:
+    :param mdl:
     :param input:
     :param prob_pred:
     :param prob_target:
@@ -143,16 +143,16 @@ def fit(epochs, model, op):
         #     torch.save(model.state_dict(), model_path)
 
 
-
-
 if __name__ == '__main__':
 
     if args.train:
         # run model
         model, opt = get_model()
 
-
         # train model
         fit(args.max_epoch, model, opt)
+
+        plot_pc_mayavi([model.mu[0].view(model.voxel_centers.shape).detach().numpy(), model.voxel_centers.detach().numpy()],
+                       colors=((1., 1., 1.), (1., 0., 1.)))
 
     logging.info("finish training.")
