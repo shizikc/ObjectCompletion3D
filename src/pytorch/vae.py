@@ -34,7 +34,7 @@ class Encoder(nn.Module):
         """
         h1 = self.dens(x)
 
-        return F.softmax(self.cls_prob(h1), dim=1), self.fc_mu(h1), self.fc_mat(h1)
+        return F.softmax(self.cls_prob(h1), dim=1), self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
 
 
 # class _Loss_(nn.Module):
