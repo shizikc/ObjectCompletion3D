@@ -7,11 +7,9 @@ import h5py
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+import numbers
 
 from src.pytorch.visualization import plot_pc_mayavi
-
-dev = torch.device(
-    "cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -27,7 +25,7 @@ def load_single_file(path, data_name="data"):
 
 
 # UTILITY FUNCTIONS TO CREATE AND SAVE DATASETS#
-def data_writer(dirname, bins=10, n_files=-1):
+def data_writer(dirname, n_files=-1, bins=5):
     """
     create a training data set by intersecting the complete object with a hyperplane,
     such that the partial object obtained is 70%-85% of the complete.

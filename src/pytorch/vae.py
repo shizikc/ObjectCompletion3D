@@ -1,15 +1,11 @@
-from builtins import int
-
 import logging
 
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
 
 import torch.nn.functional as F
 
 from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch
-# from src.dataset.data_utils import plot_pc
 from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.region_select import FilterLocalization
 from src.pytorch.pointnet import PointNetDenseCls, PointNetCls
@@ -38,7 +34,7 @@ class Encoder(nn.Module):
         """
         h1 = self.dens(x)
 
-        return F.softmax(self.cls_prob(h1), dim=1), self.fc_mu(h1), self.fc_mat(h1)
+        return F.softmax(self.cls_prob(h1), dim=1), self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
 
 
 class VAELoss(nn.Module):
@@ -49,9 +45,9 @@ class VAELoss(nn.Module):
         """
         super(VAELoss, self).__init__()
 
+        self.cd_coeff = cd_coeff
 
-        ## loss is expressed explicitly as a function
-        # self.loss = None
+        self.loss = None
 
     def forward(self, x_diff_pred, x_diff_target):
         """
@@ -103,10 +99,9 @@ class VariationalAutoEncoder(nn.Module):
         self.sigma = None
         self.probs = None
 
-        # e0 = torch.arange(-1, 1, 2 / self.n_bins).detach()
-        # e1 = e0 + 2 / self.n_bins
         self.voxel_centers = get_voxel_centers(self.n_bins).to(dev)
         voxel_radius = 1 / self.n_bins
+
         self.lower_bound = self.voxel_centers - voxel_radius
         self.upper_bound = self.voxel_centers + voxel_radius
 
@@ -117,27 +112,32 @@ class VariationalAutoEncoder(nn.Module):
                                   method=self.regular_method)
         self.vloss = VAELoss(cd_coeff=self.cd_coeff)
 
-    def _reparameterize(self):
+        # self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d):
+            torch.nn.init.zeros_(m.weight)
+            m.bias.data.fill_(0) # 1 / self.n_bins)
+
+    def _reparameterize(self, center, scale):
         """
             This reparameterization trick first generates a uniform distribution sample over the unit sphere,
              then shapes the distribution  with the mu and sigma from the encoder.
             This way, we can can calculate the gradient parameterized by this particular random instance.
 
-        :param mask:   boolean tensor  in torch.Size([bs, num_cubes])
         :param mu:  Float tensor  in torch.Size([bs, 3*num_cubes])
         :param sigma: Float tensor in torch.Size([bs, 3*num_cubes])
         :return: Float tensor  in torch.Size([bs, num_samples, 3])
         """
 
-        vector_size = (self.mu.shape[0], self.num_voxels, self.num_sample_cube, 3)
+        vector_size = (center.shape[0], self.num_voxels, self.num_sample_cube, 3)
 
         # sample random standard
         eps = torch.randn(vector_size).to(self.dev)
-        eps *= self.sigma.view(self.sigma.shape[0], -1, 1, 3)
-        eps += self.mu.view(self.mu.shape[0], -1, 1, 3)
+        eps *= scale.view(scale.shape[0], -1, 1, 3)
+        eps += center.view(center.shape[0], -1, 1, 3)
 
         return eps
-
 
     def forward(self, x, x_target, prob_target):
         """
@@ -154,7 +154,7 @@ class VariationalAutoEncoder(nn.Module):
         self.mu = self.rc(self.mu.view(self.n_bins, self.n_bins, self.n_bins, 3))
 
         # distributing standard normal samples to voxels
-        z = self._reparameterize()  # torch.Size([1, 125, 20, 3])
+        z = self._reparameterize(self.mu, self.sigma)  # torch.Size([1, 125, 20, 3])
 
         # out contains only high probability voxels
         out = self.fl(self.probs, prob_target, z)  # torch.Size([1, 420, 3])
@@ -179,7 +179,7 @@ if __name__ == '__main__':
 
     ###########################################
     #
-    encoder = Encoder(num_cubes=resulotion ** 3).double()
+    encoder = Encoder(num_cubes=resulotion ** 3)
     probs, mu, scale = encoder(x_partial.transpose(2, 1))
 
     print('probs: ', probs.size())  # prob torch.Size([bs, 1000]) view(prob.shape[0], -1, 3)
@@ -187,7 +187,7 @@ if __name__ == '__main__':
     print('scale: ', scale.size())  # scale torch.Size([bs, 9000])
     ###########################################
     #
-    # vae = VariationalAutoEncoder(num_cubes=resulotion, dev='cpu').double()
+    # vae = VariationalAutoEncoder(num_cubes=resulotion, dev='cpu')
     #
     # vae_out = vae(x_partial.transpose(2, 1), x_diff, hist.flatten())
     #
@@ -200,4 +200,3 @@ if __name__ == '__main__':
     #
     # z = vae._reparameterize()
     # print("params ", z.shape)  # torch.Size([1, 1000, 100, 3])
-
