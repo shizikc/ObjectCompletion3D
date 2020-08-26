@@ -2,11 +2,11 @@ import argparse
 import logging
 from pathlib import Path
 import torch.nn as nn
-
+import ops
 import torch
 import torch.optim as opt
 # from torch.utils.tensorboard import SummaryWriter
-from src.dataset.data_utils import plot_pc_mayavi
+
 from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.vae import VariationalAutoEncoder
 
@@ -22,7 +22,7 @@ parser.add_argument('--model_path',
 parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
 # default='/home/coopers/data/chair/')
-parser.add_argument('--max_epoch', type=int, default=50, help='Epoch to run [default: 100]')
+parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
@@ -31,8 +31,8 @@ parser.add_argument('--object_id', default='04256520', help='object id = sub fol
 parser.add_argument('--regular_method', default='abs')
 parser.add_argument('--threshold', default=0.01, help='cube probability threshold')
 parser.add_argument('--cf_coeff', default=1)
-parser.add_argument('--bce_coeff', default=100)
-parser.add_argument('--rc_coeff', default=0.01)
+parser.add_argument('--bce_coeff', default=1)
+parser.add_argument('--rc_coeff', default=1)
 args = parser.parse_args()
 
 # Model Life-Cycle
@@ -68,8 +68,7 @@ if args.eval:
 def get_model():
     vae = VariationalAutoEncoder(n_bins=bins, dev=dev, voxel_sample=20, cf_coeff=cf_coeff,
                                  threshold=threshold, rc_coeff=rc_coeff, bce_coeff=bce_coeff,
-                                 regular_method=regular_method)
-
+                                 regular_method=regular_method).double()
     return vae.to(dev), opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
 
 
@@ -77,7 +76,7 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     """
 
     :param idx:
-    :param mdl:
+    :param model:
     :param input:
     :param prob_pred:
     :param prob_target:
@@ -95,6 +94,7 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     # loss = sum([m.loss for m in model.modules() if hasattr(m, 'loss')])
 
     loss = 0
+
     for m in model.modules():
         if hasattr(m, 'loss'):
             loss += m.loss
@@ -121,6 +121,7 @@ def fit(epochs, model, op):
         #     *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=i)
         #       for i, (x, d, h) in enumerate(train_loader)]
         # )
+        print("**" + str(model.mu))
         # train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, loss))
 
@@ -143,16 +144,21 @@ def fit(epochs, model, op):
         #     torch.save(model.state_dict(), model_path)
 
 
+def init_weights(m):
+    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d):
+        torch.nn.init.zeros_(m.weight)
+        m.bias.data.fill_(0)
+
+
 if __name__ == '__main__':
 
     if args.train:
         # run model
         model, opt = get_model()
-
+        model.apply(init_weights)
         # train model
         fit(args.max_epoch, model, opt)
-
-        plot_pc_mayavi([model.mu[0].view(model.voxel_centers.shape).detach().numpy(), model.voxel_centers.detach().numpy()],
-                       colors=((1., 1., 1.), (1., 0., 1.)))
-
+        model.eval()
+        loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op,
+                   idx=epochs)
     logging.info("finish training.")

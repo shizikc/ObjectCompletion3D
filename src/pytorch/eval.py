@@ -3,7 +3,7 @@
 
 import torch
 
-from src.dataset.data_utils import plot_pc
+from src.pytorch.visualization import plot_pc
 from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.train import model_path, get_model
 

@@ -1,6 +1,5 @@
 import unittest
 
-from src.dataset.data_utils import plot_pc
 from src.dataset.shapeDiff import ShapeDiffDataset
 
 train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/chair/'

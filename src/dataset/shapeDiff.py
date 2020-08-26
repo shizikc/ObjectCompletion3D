@@ -7,11 +7,11 @@ import h5py
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-import numbers
 
-from src.dataset.data_utils import plot_pc
-from src.dataset.data_utils import plot_pc_mayavi
+from src.pytorch.visualization import plot_pc_mayavi
 
+dev = torch.device(
+    "cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -27,7 +27,7 @@ def load_single_file(path, data_name="data"):
 
 
 # UTILITY FUNCTIONS TO CREATE AND SAVE DATASETS#
-def data_writer(dirname, n_files=-1, bins=5):
+def data_writer(dirname, bins=10, n_files=-1):
     """
     create a training data set by intersecting the complete object with a hyperplane,
     such that the partial object obtained is 70%-85% of the complete.
@@ -100,15 +100,14 @@ def create_diff_point_cloud(pc1, pc2):
     return pc1[indices]
 
 
-def create_partial_from_complete(complete, rng=None):
+def create_partial_from_complete(complete):
     """
     create a partial object with 70%-85% unique points.
     The returned object is then added with randomly duplicated points to contain exactly 1740 points
     :param complete:
     :return:
     """
-    if rng is None:
-        rng = np.random.default_rng()
+    rng = np.random.default_rng()
     s = 0
     mn, mx = complete.min(), complete.max()
     # 70% (int(0.7 * 2048)=1433) < |partial object| < 85% (int(0.85 * 2048)=1740)
@@ -195,8 +194,7 @@ class ShapeDiffDataset(Dataset):
                                                             rng=self.rng)
         H, edges = create_hist_labels(x_diff, self.bins)
 
-        return torch.tensor(x_partial).to(self.dev).float(), torch.tensor(x_diff).to(self.dev).float(),\
-               torch.tensor(H).to(self.dev).float()
+        return torch.tensor(x_partial).to(self.dev), torch.tensor(x_diff).to(self.dev), torch.tensor(H).to(self.dev)
 
 
 
@@ -211,4 +209,4 @@ if __name__ == '__main__':
                                 seed=42
                                 )
     x_partial, x_diff, hist = shapenet[0]
-    # plot_pc_mayavi([x_partial, x_diff], colors=((1., 1., 1.), (1., 0., 0.)))
+    plot_pc_mayavi([x_partial, x_diff], colors=((1., 1., 1.), (1., 0., 0.)))

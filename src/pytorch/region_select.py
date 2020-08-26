@@ -9,9 +9,10 @@ class FilterLocalization(nn.Module):
         self.bce_loss = nn.BCELoss(reduction='mean')
         self.threshold = threshold
         self.coeff = coeff
-        self.loss = None
+        self.loss = 0.0
 
     def forward(self, p, prob_target, samples):
+
         BCE = self.bce_loss(p[0], prob_target)
         self.loss = self.coeff * BCE
 
