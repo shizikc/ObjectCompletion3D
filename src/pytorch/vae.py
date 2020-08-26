@@ -37,12 +37,13 @@ class Encoder(nn.Module):
         return F.softmax(self.cls_prob(h1), dim=1), self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
 
 
-# class _Loss_(nn.Module):
-#     def __init__(self, coeff):
-#         """
-#
-#         :param coeff:
-#         """
+class _Loss_(nn.Module):
+    def __init__(self, coeff):
+        """
+
+        :param coeff:
+        """
+        self._loss = None
 
 
 class VAELoss(nn.Module):

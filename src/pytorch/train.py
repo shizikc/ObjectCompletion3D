@@ -1,4 +1,5 @@
 import argparse
+import collections
 import logging
 from pathlib import Path
 import torch.nn as nn
@@ -7,7 +8,7 @@ import torch
 import torch.optim as opt
 # from torch.utils.tensorboard import SummaryWriter
 from src.dataset.shapeDiff import ShapeDiffDataset
-from src.pytorch.vae import VariationalAutoEncoder
+from src.pytorch.vae import VariationalAutoEncoder, _Loss_
 from src.pytorch.visualization import plot_pc_mayavi
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
@@ -22,7 +23,7 @@ parser.add_argument('--model_path',
 parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
 # default='/home/coopers/data/chair/')
-parser.add_argument('--max_epoch', type=int, default=500, help='Epoch to run [default: 100]')
+parser.add_argument('--max_epoch', type=int, default=100, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
@@ -63,6 +64,7 @@ if args.eval:
 
 # writer = SummaryWriter(args.log_dir)
 
+loss_capture = collections.defaultdict(list)
 
 # Define the Model
 def get_model():
@@ -97,6 +99,7 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     loss = 0
     for m in model.modules():
         if hasattr(m, 'loss'):
+            loss_capture[str(m)].append(m.loss.item())
             loss += m.loss
 
     if opt is not None:
@@ -150,7 +153,7 @@ if __name__ == '__main__':
 
         # train model
         fit(args.max_epoch, model, opt)
-
+        # plot centers
         plot_pc_mayavi([model.mu[0].view(model.voxel_centers.shape).detach().numpy(),
                         model.voxel_centers.detach().numpy()],
                        colors=((1., 1., 1.), (0., 0., 1.)))

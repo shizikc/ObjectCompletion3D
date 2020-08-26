@@ -2,7 +2,6 @@ import torch
 from torch.nn import Module
 import torch.nn.functional as F
 
-
 class RegularizedClip(Module):
     def __init__(self, coeff, lower=-1., upper=1., method="abs"):
         super(RegularizedClip, self).__init__()
@@ -31,6 +30,7 @@ class RegularizedClip(Module):
 
         if self.method == "square":
             y = torch.pow(y, 2.)
+
         self.loss = y.sum() * self.coeff
 
         return c
