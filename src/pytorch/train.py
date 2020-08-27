@@ -6,7 +6,8 @@ import ops
 import torch
 import torch.optim as opt
 # from torch.utils.tensorboard import SummaryWriter
-from src.dataset.data_utils import plot_pc_mayavi
+from src.pytorch.visualization import plot_pc_mayavi
+from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch
 from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.vae import VariationalAutoEncoder
 
@@ -14,26 +15,28 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                     level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--model_path',
                     default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
-# default='/home/coopers/models/')
+                    # default='/home/coopers/models/')
+                    # default='./models/')
 parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
-# default='/home/coopers/data/chair/')
+                    # default='/home/yonatan/data/oc3d/chair/train/gt/')
 parser.add_argument('--max_epoch', type=int, default=500, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 1]')
-parser.add_argument('--object_id', default='04256520', help='object id = sub folder name [default: 03001627 (chair)]')
+parser.add_argument('--object_id', default='03001627', help='object id = sub folder name [default: 03001627 (chair)]')
 parser.add_argument('--regular_method', default='abs')
 parser.add_argument('--threshold', default=0.01, help='cube probability threshold')
 parser.add_argument('--cf_coeff', default=1)
 parser.add_argument('--bce_coeff', default=100)
 parser.add_argument('--rc_coeff', default=0.01)
-args = parser.parse_args()
+#additional args read from file - put an empty 'args.txt' file in working directory to run without errors
+args = parser.parse_args(['@args.txt'])
 
 # Model Life-Cycle
 ##################
@@ -87,26 +90,27 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     :return:
     """
 
-    x_diff_pred = mdl(input, x_diff_target, prob_target)
-
+    x_diff_pred, voxel_scores = mdl(input, x_diff_target, prob_target)
+    chamfer_loss = chamfer_distance_with_batch(x_diff_pred, x_diff_target.transpose(2,1), 0)
+    # pred_loss = torch.nn.BCELoss(voxel_scores, prob_target)
+    pred_loss = 0
     if idx % 50 == 1:
-        logging.info("Finished " + str(idx) + " batches.")
+        logging.info("Finished " + str(idx) + " batches. chamfer loss: %.4f, pred_loss: %.4f" %(chamfer_loss, pred_loss))
 
-    # loss = sum([m.loss for m in model.modules() if hasattr(m, 'loss')])
+    total_loss = chamfer_loss  # + pred_loss
 
-    loss = 0
-    for m in model.modules():
-        if hasattr(m, 'loss'):
-            loss += m.loss
-            print("*** " + str(m) + " : " + str(m.loss))
+    # losses = ops.get_module_losses(model)
+    # loss = sum(losses.values())
+
 
     if opt is not None:
         # training
-        loss.backward()
-        opt.step()
         opt.zero_grad()
+        total_loss.backward()
+        opt.step()
 
-    return loss.item()  # , input.shape[0]
+
+    return total_loss
 
 
 def fit(epochs, model, op):
@@ -114,14 +118,18 @@ def fit(epochs, model, op):
 
     for epoch in range(epochs):
         model.train()
-        loss = loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op,
+        loss = loss_batch(mdl=model,
+                          input=x.transpose(2, 1),
+                          prob_target=h.flatten(),
+                          x_diff_target=d.transpose(2, 1),
+                          opt=op,
                           idx=epochs)
 
         # losses, nums = zip(
         #     *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=i)
         #       for i, (x, d, h) in enumerate(train_loader)]
         # )
-        print("**" + str(model.mu))
+        # print("**" + str(model.mu))
         # train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, loss))
 

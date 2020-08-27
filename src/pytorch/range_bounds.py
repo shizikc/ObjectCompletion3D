@@ -15,9 +15,8 @@ class RegularizedClip(Module):
         self.y = None
 
     def forward(self, x):
-        c = torch.max(x, self.lower)
-        c = torch.min(c, self.upper).view(1, -1)
 
+        c = torch.clamp(x, self.lower, self.upper)
         r = self.upper - self.lower
 
         mean = (self.upper + self.lower) * 0.5

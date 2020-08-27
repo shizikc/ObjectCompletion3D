@@ -14,6 +14,7 @@ from src.pytorch.pctools import get_voxel_centers
 
 
 class Encoder(nn.Module):
+
     def __init__(self, num_cubes):
         super(Encoder, self).__init__()
         self.num_cubes = num_cubes
@@ -33,8 +34,10 @@ class Encoder(nn.Module):
           sigma in torch.Size([bs, 9*num_cubes])
         """
         h1 = self.dens(x)
-
-        return F.softmax(self.cls_prob(h1), dim=1), self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
+        probs = F.softmax(self.cls_prob(h1), dim=1)
+        mu = self.fc_mu(h1)
+        sigma = F.logsigmoid(self.fc_mat(h1))
+        return probs, mu, sigma
 
 
 class VAELoss(nn.Module):
@@ -105,11 +108,11 @@ class VariationalAutoEncoder(nn.Module):
         self.lower_bound = self.voxel_centers - voxel_radius
         self.upper_bound = self.voxel_centers + voxel_radius
 
-        self.encoder = Encoder(num_cubes=self.num_voxels)
-
-        self.fl = FilterLocalization(coeff=self.bce_coeff, threshold=self.threshold)
-        self.rc = RegularizedClip(lower=-0.5, upper=0.5, coeff=self.rc_coeff,
-                                  method=self.regular_method)
+        # self.encoder = Encoder(num_cubes=self.num_voxels)
+        self.encoder = torch.nn.Linear(1, self.num_voxels * 7)
+        # self.fl = FilterLocalization(coeff=self.bce_coeff, threshold=self.threshold)
+        # self.rc = RegularizedClip(lower=-0.5, upper=0.5, coeff=self.rc_coeff,
+        #                           method=self.regular_method)
         self.vloss = VAELoss(cd_coeff=self.cd_coeff)
 
         # self.apply(self._init_weights)
@@ -139,6 +142,7 @@ class VariationalAutoEncoder(nn.Module):
 
         return eps
 
+
     def forward(self, x, x_target, prob_target):
         """
 
@@ -148,18 +152,27 @@ class VariationalAutoEncoder(nn.Module):
         :return:
         """
 
-        self.probs, self.mu, self.sigma = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
-
+        # probs, mu, sigma = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
+        s = self.encoder(x.sum().reshape(1, 1) * 0.)
+        probs, mu, sigma = torch.split_with_sizes(s, tuple(torch.tensor([1, 3, 3])*self.num_voxels), axis=1)
+        mu = mu.reshape(mu.shape[0], -1, 3)
+        sigma = sigma.reshape(sigma.shape[0], -1, 3)
         ##  clipping mu and calculating regulerize loss factor
-        self.mu = self.rc(self.mu.view(self.n_bins, self.n_bins, self.n_bins, 3))
-
+        # mu = self.rc(mu.view(self.n_bins, self.n_bins, self.n_bins, 3))
+        mu = mu + self.voxel_centers
         # distributing standard normal samples to voxels
-        z = self._reparameterize(self.mu, self.sigma)  # torch.Size([1, 125, 20, 3])
+        z = self._reparameterize(mu, sigma)  # torch.Size([1, 125, 20, 3])
+
 
         # out contains only high probability voxels
-        out = self.fl(self.probs, prob_target, z)  # torch.Size([1, 420, 3])
+        # out = self.fl(probs, prob_target, z)  # torch.Size([1, 420, 3])
 
-
+        mask = prob_target > 0
+        out = z[:, mask]
+        out = out.reshape(out.shape[0], -1, 3)
+        # Trying to keep state to a minimum, use for debug and logging. Keeping reference to intermediate
+        # tensors prohibits pytorch from releasing memory. Also, state doesn't play well with jitted functions/
+        self.probs, self.mu, self.sigma = probs, mu, sigma
         return out, probs
 
 
