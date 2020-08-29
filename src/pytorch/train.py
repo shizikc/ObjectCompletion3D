@@ -25,7 +25,7 @@ parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
 # default='/home/coopers/data/chair/')
 parser.add_argument('--max_epoch', type=int, default=100, help='Epoch to run [default: 100]')
-parser.add_argument('--bins', type=int, default=40, help='resolution of main cube [default: 10]')
+parser.add_argument('--bins', type=int, default=10, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 1]')
@@ -148,8 +148,9 @@ def fit(epochs, model, op):
         #     min_loss = loss
         #     # temporary save model
         #     torch.save(model.state_dict(), model_path)
-    pred = model(x.transpose(1, 2))[0]
-    print(pred.shape)
+    pred = model(x.transpose(1, 2))
+    print(pred[1])
+    print(pred[0].shape)
     plot_pc_mayavi([pred[0].detach().numpy(), x, d],
                    colors=((1., 1., 1.), (0., 0., 1.), (1., 0., 0.)))
 
