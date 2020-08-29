@@ -23,8 +23,8 @@ class Encoder(nn.Module):
 
         # input: torch.Size([bs, 3, num_points])
         self.cls_prob = PointNetCls(k=num_cubes)  # torch.Size([bs, k])
-        self.fc_mu = PointNetCls(k=3 * num_cubes)  # torch.Size([bs, 3k])
-        self.fc_mat = PointNetCls(k=3 * num_cubes)  # torch.Size([bs, 3k])
+        # self.fc_mu = PointNetCls(k=3 * num_cubes)  # torch.Size([bs, 3k])
+        # self.fc_mat = PointNetCls(k=3 * num_cubes)  # torch.Size([bs, 3k])
 
     def forward(self, x):
         """
@@ -34,16 +34,7 @@ class Encoder(nn.Module):
         """
         h1 = self.dens(x)
 
-        return F.softmax(self.cls_prob(h1), dim=1), self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
-
-
-class _Loss_(nn.Module):
-    def __init__(self, coeff):
-        """
-
-        :param coeff:
-        """
-        self._loss = None
+        return F.softmax(self.cls_prob(h1), dim=1)  # , self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
 
 
 class VAELoss(nn.Module):
@@ -104,21 +95,18 @@ class VariationalAutoEncoder(nn.Module):
         self.dev = dev
         self.regular_method = regular_method
 
-        self.mu = None
-        self.sigma = None
-        self.probs = None
-
         self.voxel_centers = get_voxel_centers(self.n_bins).to(dev)
-        voxel_radius = 1 / self.n_bins
+        self.voxel_radius = 1 / (self.n_bins ** 3)
 
-        self.lower_bound = self.voxel_centers - voxel_radius
-        self.upper_bound = self.voxel_centers + voxel_radius
+        self.lower_bound = self.voxel_centers - self.voxel_radius
+        self.upper_bound = self.voxel_centers + self.voxel_radius
 
         self.encoder = Encoder(num_cubes=self.num_voxels).float()
-        self.fl = FilterLocalization(coeff=self.bce_coeff, threshold=self.threshold)
-        self.rc = RegularizedClip(lower=self.lower_bound, upper=self.upper_bound, coeff=self.rc_coeff,
-                                  method=self.regular_method)
-        self.vloss = VAELoss(cd_coeff=self.cd_coeff)
+
+        # self.fl = FilterLocalization(coeff=self.bce_coeff, threshold=self.threshold)
+        # self.rc = RegularizedClip(lower=self.lower_bound, upper=self.upper_bound, coeff=self.rc_coeff,
+        #                           method=self.regular_method)
+        # self.vloss = VAELoss(cd_coeff=self.cd_coeff)
 
         # self.apply(self._init_weights)
 
@@ -127,7 +115,7 @@ class VariationalAutoEncoder(nn.Module):
             torch.nn.init.zeros_(m.weight)
             m.bias.data.fill_(0)  # 1 / self.n_bins)
 
-    def _reparameterize(self, center, scale):
+    def _reparameterize(self):
         """
             This reparameterization trick first generates a uniform distribution sample over the unit sphere,
              then shapes the distribution  with the mu and sigma from the encoder.
@@ -138,40 +126,31 @@ class VariationalAutoEncoder(nn.Module):
         :return: Float tensor  in torch.Size([bs, num_samples, 3])
         """
 
-        vector_size = (center.shape[0], self.num_voxels, self.num_sample_cube, 3)
+        vector_size = (1, self.num_voxels, self.num_sample_cube, 3)
 
         # sample random standard
         eps = torch.randn(vector_size).to(self.dev)
-        eps *= scale.view(scale.shape[0], -1, 1, 3)
-        eps += center.view(center.shape[0], -1, 1, 3)
+        eps *= self.voxel_radius  # .view(-1, 1, 3)
+        eps += self.voxel_centers.view(-1, 1, 3)
 
         return eps
 
-    def forward(self, x, x_target, prob_target):
+    def forward(self, x):
         """
-
-        :param prob_target: frequency in ground trout cubes
-        :param x_target: missing regions ground trout point cloud
         :param x: partial object point cloud
         :return:
         """
         x = x.float()
 
-        self.probs, self.mu, self.sigma = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
-
-        ##  clipping mu and calculating regulerize loss factor
-        self.mu = self.rc(self.mu.view(self.n_bins, self.n_bins, self.n_bins, 3))
+        probs = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
 
         # distributing standard normal samples to voxels
-        z = self._reparameterize(self.mu, self.sigma)  # torch.Size([1, 125, 20, 3])
+        z = self._reparameterize()  # torch.Size([1, 125, 20, 3])
 
-        # out contains only high probability voxels
-        out = self.fl(self.probs, prob_target, z)  # torch.Size([1, 420, 3])
+        mask = probs[0] > self.threshold  # in shape probs
+        out = z[0][mask]  # torch.Size([high_prob_cubes, 20, 3])
 
-        # chamfer distance between hols point clouds
-        self.vloss(out, x_target)
-
-        return out
+        return out.view(1, -1, 3), probs
 
 
 if __name__ == '__main__':
@@ -188,21 +167,19 @@ if __name__ == '__main__':
     x_partial, x_diff, hist = next(iter(train_loader))
 
     ###########################################
-    #
+
     encoder = Encoder(num_cubes=resulotion ** 3)
-    probs, mu, scale = encoder(x_partial.transpose(2, 1))
+    probs = encoder(x_partial.transpose(2, 1))
 
     print('probs: ', probs.size())  # prob torch.Size([bs, 1000]) view(prob.shape[0], -1, 3)
-    print('mu: ', mu.size())  # mu torch.Size([bs, 3000])
-    print('scale: ', scale.size())  # scale torch.Size([bs, 9000])
+
     ###########################################
-    #
-    # vae = VariationalAutoEncoder(num_cubes=resulotion, dev='cpu')
-    #
-    # vae_out = vae(x_partial.transpose(2, 1), x_diff, hist.flatten())
-    #
-    # print("full_out ", vae_out.shape)  # torch.Size([1, num_samples, 3])
-    #
+
+    vae = VariationalAutoEncoder(n_bins=5, dev="cpu", voxel_sample=20, cf_coeff=1.,
+                                 threshold=0.01, rc_coeff=1., bce_coeff=1., regular_method="abs")
+
+    vae_out, probs_out = vae(x_partial.transpose(2, 1))
+
     ###########################################
 
     #### plot centers ####

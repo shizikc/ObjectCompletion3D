@@ -7,8 +7,9 @@ import torch.nn as nn
 import torch
 import torch.optim as opt
 # from torch.utils.tensorboard import SummaryWriter
+from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch
 from src.dataset.shapeDiff import ShapeDiffDataset
-from src.pytorch.vae import VariationalAutoEncoder, _Loss_
+from src.pytorch.vae import VariationalAutoEncoder
 from src.pytorch.visualization import plot_pc_mayavi
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
@@ -24,7 +25,7 @@ parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
 # default='/home/coopers/data/chair/')
 parser.add_argument('--max_epoch', type=int, default=100, help='Epoch to run [default: 100]')
-parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
+parser.add_argument('--bins', type=int, default=40, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 1]')
@@ -61,10 +62,10 @@ if args.eval:
     val_dataset = ShapeDiffDataset(val_path, bins, dev)
     val_loader = torch.utils.data.DataLoader(val_dataset, 1, shuffle=True)
 
-
 # writer = SummaryWriter(args.log_dir)
 
 loss_capture = collections.defaultdict(list)
+bce_loss = nn.BCELoss(reduction='mean')
 
 # Define the Model
 def get_model():
@@ -89,18 +90,20 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     :return:
     """
 
-    x_diff_pred = mdl(input, x_diff_target, prob_target)
+    diff_pred, probs_pred = mdl(input)
 
     if idx % 50 == 1:
         logging.info("Finished " + str(idx) + " batches.")
 
-    # loss = sum([m.loss for m in model.modules() if hasattr(m, 'loss')])
+    loss = args.bce_coeff * bce_loss(probs_pred[0], prob_target)
 
-    loss = 0
-    for m in model.modules():
-        if hasattr(m, 'loss'):
-            loss_capture[str(m)].append(m.loss.item())
-            loss += m.loss
+    if diff_pred.shape[1] == 0:
+        logging.info("Found partial with no positive probability cubes: " + str(diff_pred.shape))
+        CD = 100
+    else:
+        CD = chamfer_distance_with_batch(diff_pred, x_diff_target, False)
+
+    loss += cf_coeff * CD
 
     if opt is not None:
         # training
@@ -113,6 +116,8 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
 
 def fit(epochs, model, op):
     x, d, h = next(iter(train_loader))
+    print(x.shape)
+    print(d.shape)
 
     for epoch in range(epochs):
         model.train()
@@ -136,13 +141,17 @@ def fit(epochs, model, op):
         # val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         # logging.info("Epoch : % 3d, Validation error : % 5.5f" % (epoch, val_loss))
         #
-        if epoch == 0:
-            min_loss = loss
-
-        if loss <= min_loss:
-            min_loss = loss
-            # temporary save model
-            torch.save(model.state_dict(), model_path)
+        # if epoch == 0:
+        #     min_loss = loss
+        #
+        # if loss <= min_loss:
+        #     min_loss = loss
+        #     # temporary save model
+        #     torch.save(model.state_dict(), model_path)
+    pred = model(x.transpose(1, 2))[0]
+    print(pred.shape)
+    plot_pc_mayavi([pred[0].detach().numpy(), x, d],
+                   colors=((1., 1., 1.), (0., 0., 1.), (1., 0., 0.)))
 
 
 if __name__ == '__main__':
@@ -154,13 +163,5 @@ if __name__ == '__main__':
         # train model
         fit(args.max_epoch, model, opt)
         # plot centers
-        plot_pc_mayavi([model.mu[0].view(model.voxel_centers.shape).detach().numpy(),
-                        model.voxel_centers.detach().numpy()],
-                       colors=((1., 1., 1.), (0., 0., 1.)))
 
-        # pred =  model(x.transpose(2,1), d, h.flatten()).detach().numpy()
-        # plot_pc_mayavi([x.detach().numpy(), pred],
-        #                colors=[(0., 1., 1.) , (1., 0., 0.)])
-
-    #                         d.detach().numpy() , (1., 0., 0.)
     logging.info("finish training.")
