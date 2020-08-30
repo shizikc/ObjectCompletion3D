@@ -96,7 +96,7 @@ class VariationalAutoEncoder(nn.Module):
         self.regular_method = regular_method
 
         self.voxel_centers = get_voxel_centers(self.n_bins).to(dev)
-        self.voxel_radius = 1 / (self.n_bins ** 3)
+        self.voxel_radius = 1 / self.n_bins
 
         self.lower_bound = self.voxel_centers - self.voxel_radius
         self.upper_bound = self.voxel_centers + self.voxel_radius

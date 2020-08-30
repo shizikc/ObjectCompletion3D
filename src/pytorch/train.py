@@ -24,8 +24,8 @@ parser.add_argument('--model_path',
 parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
 # default='/home/coopers/data/chair/')
-parser.add_argument('--max_epoch', type=int, default=100, help='Epoch to run [default: 100]')
-parser.add_argument('--bins', type=int, default=10, help='resolution of main cube [default: 10]')
+parser.add_argument('--max_epoch', type=int, default=200, help='Epoch to run [default: 100]')
+parser.add_argument('--bins', type=int, default=30, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 1]')
@@ -116,8 +116,6 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
 
 def fit(epochs, model, op):
     x, d, h = next(iter(train_loader))
-    print(x.shape)
-    print(d.shape)
 
     for epoch in range(epochs):
         model.train()
@@ -140,19 +138,21 @@ def fit(epochs, model, op):
         #
         # val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         # logging.info("Epoch : % 3d, Validation error : % 5.5f" % (epoch, val_loss))
-        #
-        # if epoch == 0:
-        #     min_loss = loss
-        #
-        # if loss <= min_loss:
-        #     min_loss = loss
-        #     # temporary save model
-        #     torch.save(model.state_dict(), model_path)
+
+        if epoch == 0:
+            min_loss = loss
+
+        if loss <= min_loss:
+            min_loss = loss
+            # temporary save model
+            torch.save(model.state_dict(), model_path)
+
     pred = model(x.transpose(1, 2))
-    print(pred[1])
     print(pred[0].shape)
+
     plot_pc_mayavi([pred[0].detach().numpy(), x, d],
                    colors=((1., 1., 1.), (0., 0., 1.), (1., 0., 0.)))
+    return x
 
 
 if __name__ == '__main__':
@@ -162,7 +162,7 @@ if __name__ == '__main__':
         model, opt = get_model()
 
         # train model
-        fit(args.max_epoch, model, opt)
+        x = fit(args.max_epoch, model, opt)
         # plot centers
 
     logging.info("finish training.")
