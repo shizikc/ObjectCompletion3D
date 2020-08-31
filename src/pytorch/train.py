@@ -16,7 +16,7 @@ logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                     level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--model_path',
                     default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
@@ -24,8 +24,8 @@ parser.add_argument('--model_path',
 parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
 # default='/home/coopers/data/chair/')
-parser.add_argument('--max_epoch', type=int, default=200, help='Epoch to run [default: 100]')
-parser.add_argument('--bins', type=int, default=30, help='resolution of main cube [default: 10]')
+parser.add_argument('--max_epoch', type=int, default=2000, help='Epoch to run [default: 100]')
+parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 1]')
@@ -33,9 +33,9 @@ parser.add_argument('--object_id', default='04256520', help='object id = sub fol
 parser.add_argument('--regular_method', default='abs')
 parser.add_argument('--threshold', default=0.0, help='cube probability threshold')
 parser.add_argument('--cf_coeff', default=1)
-parser.add_argument('--bce_coeff', default=100)
+parser.add_argument('--bce_coeff', default=1)
 parser.add_argument('--rc_coeff', default=0.01)
-args = parser.parse_args()
+args = parser.parse_args(["@args.txt"])
 
 # Model Life-Cycle
 ##################
@@ -72,7 +72,8 @@ def get_model():
     vae = VariationalAutoEncoder(n_bins=bins, dev=dev, voxel_sample=20,
                                  threshold=threshold, regular_method=regular_method)
 
-    return vae.to(dev), opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
+    # return vae.to(dev), torch.optim.SGD(vae.parameters(), lr=0.00001, betas=(0.9, 0.999))
+    return vae.to(dev), torch.optim.SGD(vae.parameters(), lr=1., momentum=0.9)
 
 
 def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
@@ -90,18 +91,19 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     """
 
     diff_pred, probs_pred = mdl(input)
-    print(probs_pred.shape)
-    print(prob_target.shape)
+
+    # mask = (prob_target > 0).float()
 
     loss = args.bce_coeff * bce_loss(probs_pred, prob_target)
-    if idx > 50:
-        if diff_pred.shape[1] == 0:
-            logging.info("Found partial with no positive probability cubes: " + str(diff_pred.shape))
-            CD = 100
-        else:
-            CD = chamfer_distance_with_batch(diff_pred, x_diff_target, False)
-
-        loss += cd_coeff * CD
+    acc = ((probs_pred > 0.5) == prob_target).float().mean()
+    # if idx > 50:
+    #     if diff_pred.shape[1] == 0:
+    #         logging.info("Found partial with no positive probability cubes: " + str(diff_pred.shape))
+    #         CD = 100
+    #     else:
+    #         CD = chamfer_distance_with_batch(diff_pred, x_diff_target, False)
+    #
+    #     loss += cd_coeff * CD
 
     if opt is not None:
         # training
@@ -109,7 +111,7 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
         opt.step()
         opt.zero_grad()
 
-    return loss.item()  # , input.shape[0]
+    return loss.item(), acc.item() # , input.shape[0]
 
 
 def fit(epochs, model, op):
@@ -117,7 +119,7 @@ def fit(epochs, model, op):
 
     for epoch in range(epochs):
         model.train()
-        loss = loss_batch(mdl=model,
+        loss, acc = loss_batch(mdl=model,
                           input=x.transpose(2, 1),
                           prob_target=h.flatten(),
                           x_diff_target=d,
@@ -129,7 +131,7 @@ def fit(epochs, model, op):
         #       for i, (x, d, h) in enumerate(train_loader)]
         # )
         # train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
-        logging.info("Epoch : % 3d, Training error : % 5.5f" % (epoch, loss))
+        logging.info("Epoch : % 3d, Training error : % 5.5f, accuracy : %.4f" % (epoch, loss, acc))
 
         # model.eval()
         # with torch.no_grad():
@@ -141,13 +143,13 @@ def fit(epochs, model, op):
         # val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         # logging.info("Epoch : % 3d, Validation error : % 5.5f" % (epoch, val_loss))
 
-        if epoch == 0:
-            min_loss = loss
-
-        if loss <= min_loss:
-            min_loss = loss
-            # temporary save model
-            torch.save(model.state_dict(), model_path)
+        # if epoch == 0:
+        #     min_loss = loss
+        #
+        # if loss <= min_loss:
+        #     min_loss = loss
+        #     # temporary save model
+        #     torch.save(model.state_dict(), model_path)
 
     return x
 
@@ -162,6 +164,6 @@ if __name__ == '__main__':
         x = fit(args.max_epoch, model, opt)
         # plot centers
         pred = model(x.transpose(1, 2))
-        plot_pc_mayavi([pred[0].detach().numpy(), x], colors=((1., 1., 1.), (0., 0., 1.)))
+        # plot_pc_mayavi([pred[0].detach().numpy(), x], colors=((1., 1., 1.), (0., 0., 1.)))
 
     logging.info("finish training.")

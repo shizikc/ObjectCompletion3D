@@ -19,10 +19,11 @@ class Encoder(nn.Module):
         self.num_cubes = num_cubes
 
         # input: torch.Size([bs, 3, num_points])
-        self.dens = PointNetDenseCls(k=3)  # torch.Size([bs, 3, num_points])
-
+        # self.pnet = PointNetDenseCls(k=3)  # torch.Size([bs, 3, num_points])
+        # self.bias = torch.nn.Parameter(torch.zeros((num_cubes,), dtype=torch.float32))
         # input: torch.Size([bs, 3, num_points])
-        self.cls = PointNetCls(k=7*num_cubes)  # torch.Size([bs, k])
+        # self.cls = PointNetCls(k=7*num_cubes)  # torch.Size([bs, k])
+        self.cls = PointNetCls(num_cubes)  # torch.Size([bs, k])
 
     def forward(self, x):
         """
@@ -30,9 +31,10 @@ class Encoder(nn.Module):
         :return: probs in torch.Size([bs, num_cubes]),  mu in torch.Size([bs, 3*num_cubes]),
           sigma in torch.Size([bs, 9*num_cubes])
         """
-        h1 = self.dens(x)
+        # h1 = self.dens(x)
 
-        return torch.sigmoid(self.cls(h1))  # , self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
+        return torch.sigmoid(self.cls(x))  # , self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
+        # return torch.sigmoid((self.bias + 0.).reshape(1, -1))  # , self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
 
 
 class VariationalAutoEncoder(nn.Module):
@@ -93,20 +95,23 @@ class VariationalAutoEncoder(nn.Module):
         """
         x = x.float()
 
-        s = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
+        # s = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
 
-        probs, mu, sigma = torch.split_with_sizes(s, tuple(torch.tensor([1, 3, 3]) * self.num_voxels), axis=1)
+        # probs, mu, sigma = torch.split_with_sizes(s, tuple(torch.tensor([1, 3, 3]) * self.num_voxels), axis=1)
+        probs = self.encoder(x)
 
-        mu = mu.reshape(mu.shape[0], -1, 3)
-        sigma = sigma.reshape(sigma.shape[0], -1, 3)
+        # mu = mu.reshape(mu.shape[0], -1, 3)
+        # sigma = sigma.reshape(sigma.shape[0], -1, 3)
 
         # distributing standard normal samples to voxels
-        z = self._reparameterize()  # torch.Size([1, n_bins**3, 20, 3])
+        # z = self._reparameterize()  # torch.Size([1, n_bins**3, 20, 3])
 
-        mask = probs[0] > self.threshold  # in shape probs
-        out = z[:, mask]  # torch.Size([high_prob_cubes, 20, 3])
-        out = out.view(out.shape[0], -1, 3)
-        return out, mask.float()
+        # mask = probs[0] > self.threshold  # in shape probs
+        # mask.detach_()
+        # out = z[:, mask]  # torch.Size([high_prob_cubes, 20, 3])
+
+        # out = out.view(out.shape[0], -1, 3)
+        return None, probs[0]
 
 
 if __name__ == '__main__':
