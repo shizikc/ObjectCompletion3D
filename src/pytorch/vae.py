@@ -14,16 +14,16 @@ from src.pytorch.pctools import get_voxel_centers
 
 
 class Encoder(nn.Module):
-    def __init__(self, num_cubes):
+    def __init__(self, num_features):
         super(Encoder, self).__init__()
-        self.num_cubes = num_cubes
+        self.num_features = num_features
 
         # input: torch.Size([bs, 3, num_points])
         # self.pnet = PointNetDenseCls(k=3)  # torch.Size([bs, 3, num_points])
         # self.bias = torch.nn.Parameter(torch.zeros((num_cubes,), dtype=torch.float32))
         # input: torch.Size([bs, 3, num_points])
-        # self.cls = PointNetCls(k=7*num_cubes)  # torch.Size([bs, k])
-        self.cls = PointNetCls(num_cubes)  # torch.Size([bs, k])
+        self.cls = PointNetCls(num_features)  # torch.Size([bs, k])
+
 
     def forward(self, x):
         """
@@ -60,7 +60,7 @@ class VariationalAutoEncoder(nn.Module):
         self.voxel_centers = get_voxel_centers(self.n_bins).to(dev)
         self.voxel_radius = 1 / self.n_bins
 
-        self.encoder = Encoder(num_cubes=self.num_voxels).float()
+        self.encoder = Encoder(num_features=7 * self.num_voxels).float()
         # self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -68,7 +68,7 @@ class VariationalAutoEncoder(nn.Module):
             torch.nn.init.zeros_(m.weight)
             m.bias.data.fill_(0)  # 1 / self.n_bins)
 
-    def _reparameterize(self):
+    def _reparameterize(self, centers, sigma):
         """
             This reparameterization trick first generates a uniform distribution sample over the unit sphere,
              then shapes the distribution  with the mu and sigma from the encoder.
@@ -83,35 +83,38 @@ class VariationalAutoEncoder(nn.Module):
 
         # sample random standard
         eps = torch.randn(vector_size).to(self.dev)
-        eps *= self.voxel_radius  # .view(-1, 1, 3)
-        eps += self.voxel_centers.view(-1, 1, 3)
+        eps *= self.voxel_radius * torch.nn.functional.sigmoid(sigma[:, :, None, :]) * 0.1  # .view(-1, 1, 3)
+        eps += self.voxel_centers.view(-1, 1, 3) + centers[:, :, None, :]
 
         return eps
 
-    def forward(self, x):
+    def forward(self, x, target_gt=None, pred_pc=False):
         """
         :param x: partial object point cloud
         :return:
         """
         x = x.float()
 
-        # s = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
+        s = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
 
-        # probs, mu, sigma = torch.split_with_sizes(s, tuple(torch.tensor([1, 3, 3]) * self.num_voxels), axis=1)
-        probs = self.encoder(x)
+        probs, mu, sigma = torch.split_with_sizes(s, tuple(torch.tensor([1, 3, 3]) * self.num_voxels), axis=1)
+        # probs = self.encoder(x)
+        if not pred_pc:
+            out = None
+        else:
+            mu = mu.reshape(mu.shape[0], -1, 3)
+            sigma = sigma.reshape(sigma.shape[0], -1, 3)
 
-        # mu = mu.reshape(mu.shape[0], -1, 3)
-        # sigma = sigma.reshape(sigma.shape[0], -1, 3)
-
-        # distributing standard normal samples to voxels
-        # z = self._reparameterize()  # torch.Size([1, n_bins**3, 20, 3])
-
-        # mask = probs[0] > self.threshold  # in shape probs
-        # mask.detach_()
-        # out = z[:, mask]  # torch.Size([high_prob_cubes, 20, 3])
+            # distributing standard normal samples to voxels
+            z = self._reparameterize(mu, sigma)  # torch.Size([1, n_bins**3, 20, 3])
+            if target_gt is None:
+                mask = probs[0] > self.threshold  # in shape probs
+            else:
+                mask = target_gt > 0
+            out = z[:, mask]  # torch.Size([high_prob_cubes, 20, 3])
 
         # out = out.view(out.shape[0], -1, 3)
-        return None, probs[0]
+        return out, probs[0]
 
 
 if __name__ == '__main__':

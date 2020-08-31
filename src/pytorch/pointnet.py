@@ -189,8 +189,12 @@ class PointNetCls(nn.Module):
         self.feat = PointNetfeat(global_feat=True, feature_transform=feature_transform)
 
         self.fc1 = nn.Linear(1024, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, k)
+        # self.fc2 = nn.Linear(512, 256)
+        # self.fc3 = nn.Linear(256, k)
+
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, k, bias=True)
+
         self.dropout = nn.Dropout(p=0.3)
 
         self.in1 = nn.InstanceNorm1d(512)
@@ -245,7 +249,8 @@ class PointNetDenseCls(nn.Module):
             x = F.relu(self.in3(self.conv3(x))) # torch.Size([bs, 128, num_points])
         x = self.conv4(x) # torch.Size([bs, k, points])
         # x = x.transpose(2, 1).contiguous()  # torch.Size([bs, num_points, k])
-        x = x.contiguous()  # torch.Size([bs, k, points])
+        # x = x.contiguous()  # torch.Size([bs, k, points])
+
         return x
 
 

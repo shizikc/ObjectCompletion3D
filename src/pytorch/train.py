@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch
 import torch.optim as opt
 # from torch.utils.tensorboard import SummaryWriter
-from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch
+from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch_v2
 from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.vae import VariationalAutoEncoder
 from src.pytorch.visualization import plot_pc_mayavi
@@ -31,10 +31,11 @@ parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 othe
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 1]')
 parser.add_argument('--object_id', default='04256520', help='object id = sub folder name [default: 03001627 (chair)]')
 parser.add_argument('--regular_method', default='abs')
-parser.add_argument('--threshold', default=0.0, help='cube probability threshold')
+parser.add_argument('--threshold', default=0.1, help='cube probability threshold')
 parser.add_argument('--cf_coeff', default=1)
 parser.add_argument('--bce_coeff', default=1)
 parser.add_argument('--rc_coeff', default=0.01)
+parser.add_argument('--reg_start_iter', default=100)
 args = parser.parse_args(["@args.txt"])
 
 # Model Life-Cycle
@@ -55,7 +56,7 @@ regular_method = args.regular_method
 
 # Prepare the Data
 if args.train:
-    train_dataset = ShapeDiffDataset(train_path, bins, dev)
+    train_dataset = ShapeDiffDataset(train_path, bins, dev, seed=0)
     train_loader = torch.utils.data.DataLoader(train_dataset, args.batch_size, shuffle=True)
 
 if args.eval:
@@ -72,8 +73,8 @@ def get_model():
     vae = VariationalAutoEncoder(n_bins=bins, dev=dev, voxel_sample=20,
                                  threshold=threshold, regular_method=regular_method)
 
-    # return vae.to(dev), torch.optim.SGD(vae.parameters(), lr=0.00001, betas=(0.9, 0.999))
-    return vae.to(dev), torch.optim.SGD(vae.parameters(), lr=1., momentum=0.9)
+    # return vae.to(dev), torch.optim.Adam(vae.parameters(), lr=0.001, betas=(0.9, 0.999))
+    return vae.to(dev), torch.optim.SGD(vae.parameters(), lr=0.001, momentum=0.9)
 
 
 def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
@@ -89,29 +90,41 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     :param opt:
     :return:
     """
-
-    diff_pred, probs_pred = mdl(input)
+    train_reg = idx >= args.reg_start_iter
+    diff_pred, probs_pred = mdl(input, pred_pc=train_reg)
 
     # mask = (prob_target > 0).float()
 
-    loss = args.bce_coeff * bce_loss(probs_pred, prob_target)
+    # loss = args.bce_coeff * bce_loss(probs_pred, prob_target)
+    pred_loss = bce_loss(probs_pred, prob_target)
+    # total_loss = pred_loss + 0.
     acc = ((probs_pred > 0.5) == prob_target).float().mean()
-    # if idx > 50:
-    #     if diff_pred.shape[1] == 0:
-    #         logging.info("Found partial with no positive probability cubes: " + str(diff_pred.shape))
-    #         CD = 100
-    #     else:
-    #         CD = chamfer_distance_with_batch(diff_pred, x_diff_target, False)
-    #
-    #     loss += cd_coeff * CD
+    if train_reg:
+        if diff_pred.shape[1] == 0:
+            logging.info("Found partial with no positive probability cubes: " + str(diff_pred.shape))
+            CD = torch.tensor(0.)
+        else:
+            CD = chamfer_distance_with_batch_v2(diff_pred.reshape(diff_pred.shape[0], -1, 3), x_diff_target)
+            # CD = chamfer_distance_with_batch_v2(x_diff_target, diff_pred.reshape(diff_pred.shape[0], -1, 3))
+
+        c_loss = CD
+    else:
+        c_loss = torch.tensor(0.)
+
+    total_loss = args.bce_coeff * pred_loss + c_loss
 
     if opt is not None:
         # training
-        loss.backward()
+        total_loss.backward()
         opt.step()
         opt.zero_grad()
 
-    return loss.item(), acc.item() # , input.shape[0]
+    # return loss.item(), acc.item() # , input.shape[0]
+    d = {'total_loss': total_loss,
+         'pred_loss': pred_loss,
+         'c_loss': c_loss,
+         'acc': acc}
+    return {k: v.item() for k, v in d.items()}
 
 
 def fit(epochs, model, op):
@@ -119,7 +132,7 @@ def fit(epochs, model, op):
 
     for epoch in range(epochs):
         model.train()
-        loss, acc = loss_batch(mdl=model,
+        metrics = loss_batch(mdl=model,
                           input=x.transpose(2, 1),
                           prob_target=h.flatten(),
                           x_diff_target=d,
@@ -131,7 +144,8 @@ def fit(epochs, model, op):
         #       for i, (x, d, h) in enumerate(train_loader)]
         # )
         # train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
-        logging.info("Epoch : % 3d, Training error : % 5.5f, accuracy : %.4f" % (epoch, loss, acc))
+        metrics['epoch'] = epoch
+        logging.info("Epoch : %(epoch)3d, total loss : %(total_loss)5.4f, pred_loss: %(pred_loss).4f, c_loss: %(c_loss).3f accuracy : %(acc).4f" % metrics)
 
         # model.eval()
         # with torch.no_grad():
