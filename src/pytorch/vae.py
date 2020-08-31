@@ -95,10 +95,10 @@ class VariationalAutoEncoder(nn.Module):
         """
         x = x.float()
 
-        s = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
+        s = self.encoder(x)
 
         probs, mu, sigma = torch.split_with_sizes(s, tuple(torch.tensor([1, 3, 3]) * self.num_voxels), axis=1)
-        # probs = self.encoder(x)
+
         if not pred_pc:
             out = None
         else:

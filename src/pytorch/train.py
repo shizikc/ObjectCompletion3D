@@ -24,7 +24,7 @@ parser.add_argument('--model_path',
 parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
 # default='/home/coopers/data/chair/')
-parser.add_argument('--max_epoch', type=int, default=2000, help='Epoch to run [default: 100]')
+parser.add_argument('--max_epoch', type=int, default=200, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
@@ -145,7 +145,8 @@ def fit(epochs, model, op):
         # )
         # train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
         metrics['epoch'] = epoch
-        logging.info("Epoch : %(epoch)3d, total loss : %(total_loss)5.4f, pred_loss: %(pred_loss).4f, c_loss: %(c_loss).3f accuracy : %(acc).4f" % metrics)
+        logging.info("Epoch : %(epoch)3d, total loss : %(total_loss)5.4f, pred_loss: %(pred_loss).4f, c_loss: %("
+                     "c_loss).3f accuracy : %(acc).4f" % metrics)
 
         # model.eval()
         # with torch.no_grad():
@@ -177,7 +178,7 @@ if __name__ == '__main__':
         # train model
         x = fit(args.max_epoch, model, opt)
         # plot centers
-        pred = model(x.transpose(1, 2))
-        # plot_pc_mayavi([pred[0].detach().numpy(), x], colors=((1., 1., 1.), (0., 0., 1.)))
+        pred = model(x.transpose(1, 2), pred_pc=True)
+        plot_pc_mayavi([pred[0].detach().numpy(), x], colors=((1., 1., 1.), (0., 0., 1.)))
 
     logging.info("finish training.")
