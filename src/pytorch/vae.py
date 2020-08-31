@@ -32,7 +32,7 @@ class Encoder(nn.Module):
         """
         h1 = self.dens(x)
 
-        return F.sigmoid(self.cls(h1))  # , self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
+        return torch.sigmoid(self.cls(h1))  # , self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
 
 
 class VariationalAutoEncoder(nn.Module):
@@ -102,12 +102,11 @@ class VariationalAutoEncoder(nn.Module):
 
         # distributing standard normal samples to voxels
         z = self._reparameterize()  # torch.Size([1, n_bins**3, 20, 3])
-        print(z.shape)
-        mask = probs > self.threshold  # in shape probs
+
+        mask = probs[0] > self.threshold  # in shape probs
         out = z[:, mask]  # torch.Size([high_prob_cubes, 20, 3])
-        print(out.shape)
         out = out.view(out.shape[0], -1, 3)
-        return out, probs
+        return out, mask.float()
 
 
 if __name__ == '__main__':

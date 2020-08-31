@@ -31,7 +31,7 @@ parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 othe
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 1]')
 parser.add_argument('--object_id', default='04256520', help='object id = sub folder name [default: 03001627 (chair)]')
 parser.add_argument('--regular_method', default='abs')
-parser.add_argument('--threshold', default=0.01, help='cube probability threshold')
+parser.add_argument('--threshold', default=0.0, help='cube probability threshold')
 parser.add_argument('--cf_coeff', default=1)
 parser.add_argument('--bce_coeff', default=100)
 parser.add_argument('--rc_coeff', default=0.01)
@@ -48,7 +48,7 @@ object_id = args.object_id
 model_path = args.model_path + "model_" + str(object_id) + "_" + str(threshold) + ".pt"
 train_path = Path(args.train_path, object_id)
 val_path = args.train_path.replace('train', 'val')
-cf_coeff = args.cf_coeff
+cd_coeff = args.cf_coeff
 rc_coeff = args.rc_coeff
 bce_coeff = args.bce_coeff
 regular_method = args.regular_method
@@ -90,19 +90,18 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     """
 
     diff_pred, probs_pred = mdl(input)
+    print(probs_pred.shape)
+    print(prob_target.shape)
 
-    if idx % 50 == 1:
-        logging.info("Finished " + str(idx) + " batches.")
+    loss = args.bce_coeff * bce_loss(probs_pred, prob_target)
+    if idx > 50:
+        if diff_pred.shape[1] == 0:
+            logging.info("Found partial with no positive probability cubes: " + str(diff_pred.shape))
+            CD = 100
+        else:
+            CD = chamfer_distance_with_batch(diff_pred, x_diff_target, False)
 
-    loss = args.bce_coeff * bce_loss(probs_pred[0], prob_target)
-
-    if diff_pred.shape[1] == 0:
-        logging.info("Found partial with no positive probability cubes: " + str(diff_pred.shape))
-        CD = 100
-    else:
-        CD = chamfer_distance_with_batch(diff_pred, x_diff_target, False)
-
-    loss += cf_coeff * CD
+        loss += cd_coeff * CD
 
     if opt is not None:
         # training
@@ -118,8 +117,12 @@ def fit(epochs, model, op):
 
     for epoch in range(epochs):
         model.train()
-        loss = loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op,
-                          idx=epochs)
+        loss = loss_batch(mdl=model,
+                          input=x.transpose(2, 1),
+                          prob_target=h.flatten(),
+                          x_diff_target=d,
+                          opt=op,
+                          idx=epoch)
 
         # losses, nums = zip(
         #     *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=i)
@@ -146,11 +149,6 @@ def fit(epochs, model, op):
             # temporary save model
             torch.save(model.state_dict(), model_path)
 
-    pred = model(x.transpose(1, 2))
-    print(pred[0].shape)
-
-    plot_pc_mayavi([pred[0].detach().numpy(), x, d],
-                   colors=((1., 1., 1.), (0., 0., 1.), (1., 0., 0.)))
     return x
 
 
@@ -163,5 +161,7 @@ if __name__ == '__main__':
         # train model
         x = fit(args.max_epoch, model, opt)
         # plot centers
+        pred = model(x.transpose(1, 2))
+        plot_pc_mayavi([pred[0].detach().numpy(), x], colors=((1., 1., 1.), (0., 0., 1.)))
 
     logging.info("finish training.")
