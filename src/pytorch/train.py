@@ -69,9 +69,8 @@ bce_loss = nn.BCELoss(reduction='mean')
 
 # Define the Model
 def get_model():
-    vae = VariationalAutoEncoder(n_bins=bins, dev=dev, voxel_sample=20, cf_coeff=cf_coeff,
-                                 threshold=threshold, rc_coeff=rc_coeff, bce_coeff=bce_coeff,
-                                 regular_method=regular_method)
+    vae = VariationalAutoEncoder(n_bins=bins, dev=dev, voxel_sample=20,
+                                 threshold=threshold, regular_method=regular_method)
 
     return vae.to(dev), opt.Adam(vae.parameters(), lr=0.0001, betas=(0.9, 0.999))
 

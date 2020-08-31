@@ -22,9 +22,7 @@ class Encoder(nn.Module):
         self.dens = PointNetDenseCls(k=3)  # torch.Size([bs, 3, num_points])
 
         # input: torch.Size([bs, 3, num_points])
-        self.cls_prob = PointNetCls(k=num_cubes)  # torch.Size([bs, k])
-        # self.fc_mu = PointNetCls(k=3 * num_cubes)  # torch.Size([bs, 3k])
-        # self.fc_mat = PointNetCls(k=3 * num_cubes)  # torch.Size([bs, 3k])
+        self.cls = PointNetCls(k=7*num_cubes)  # torch.Size([bs, k])
 
     def forward(self, x):
         """
@@ -34,62 +32,24 @@ class Encoder(nn.Module):
         """
         h1 = self.dens(x)
 
-        return F.softmax(self.cls_prob(h1), dim=1)  # , self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
-
-
-class VAELoss(nn.Module):
-    def __init__(self, cd_coeff):
-        """
-
-        :param coeff: list in length 3
-        """
-        super(VAELoss, self).__init__()
-
-        self.cd_coeff = cd_coeff
-
-        self.loss = None
-
-    def forward(self, x_diff_pred, x_diff_target):
-        """
-                gives the batch normalized Variational Error.
-
-        :param x_diff_pred: predicted completion: in shape (bs, num_points (N), 3)
-        :param x_diff_target: ground trough completion:  in shape (bs, num_points (M), 3)
-        :return: scalar
-        """
-
-        # points and points_reconstructed are n_points x 3 matrices
-        if x_diff_pred.shape[1] == 0:
-            logging.info("Found partial with no positive probability cubes: " + str(x_diff_pred.shape))
-            CD = 100
-        else:
-            CD = chamfer_distance_with_batch(x_diff_pred, x_diff_target, False)
-
-        self.loss = self.cd_coeff * CD
+        return F.sigmoid(self.cls(h1))  # , self.fc_mu(h1), F.logsigmoid(self.fc_mat(h1))
 
 
 class VariationalAutoEncoder(nn.Module):
 
-    def __init__(self, n_bins, dev, voxel_sample, cf_coeff,
-                 threshold, rc_coeff, bce_coeff, regular_method):
+    def __init__(self, n_bins, dev, voxel_sample, threshold, regular_method):
         """
 
         :param n_bins:
         :param dev:
         :param voxel_sample:
-        :param cf_coeff:
         :param threshold:
-        :param rc_coeff:
-        :param bce_coeff:
         :param regular_method:
         """
         super(VariationalAutoEncoder, self).__init__()
 
         self.num_voxels = n_bins ** 3
         self.n_bins = n_bins
-        self.rc_coeff = rc_coeff
-        self.bce_coeff = bce_coeff
-        self.cd_coeff = cf_coeff
         self.threshold = threshold
         self.num_sample_cube = voxel_sample
         self.dev = dev
@@ -98,16 +58,7 @@ class VariationalAutoEncoder(nn.Module):
         self.voxel_centers = get_voxel_centers(self.n_bins).to(dev)
         self.voxel_radius = 1 / self.n_bins
 
-        self.lower_bound = self.voxel_centers - self.voxel_radius
-        self.upper_bound = self.voxel_centers + self.voxel_radius
-
         self.encoder = Encoder(num_cubes=self.num_voxels).float()
-
-        # self.fl = FilterLocalization(coeff=self.bce_coeff, threshold=self.threshold)
-        # self.rc = RegularizedClip(lower=self.lower_bound, upper=self.upper_bound, coeff=self.rc_coeff,
-        #                           method=self.regular_method)
-        # self.vloss = VAELoss(cd_coeff=self.cd_coeff)
-
         # self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -142,15 +93,21 @@ class VariationalAutoEncoder(nn.Module):
         """
         x = x.float()
 
-        probs = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
+        s = self.encoder(x)  # mu, sigma, probs in torch.DoubleTensor
+
+        probs, mu, sigma = torch.split_with_sizes(s, tuple(torch.tensor([1, 3, 3]) * self.num_voxels), axis=1)
+
+        mu = mu.reshape(mu.shape[0], -1, 3)
+        sigma = sigma.reshape(sigma.shape[0], -1, 3)
 
         # distributing standard normal samples to voxels
-        z = self._reparameterize()  # torch.Size([1, 125, 20, 3])
-
-        mask = probs[0] > self.threshold  # in shape probs
-        out = z[0][mask]  # torch.Size([high_prob_cubes, 20, 3])
-
-        return out.view(1, -1, 3), probs
+        z = self._reparameterize()  # torch.Size([1, n_bins**3, 20, 3])
+        print(z.shape)
+        mask = probs > self.threshold  # in shape probs
+        out = z[:, mask]  # torch.Size([high_prob_cubes, 20, 3])
+        print(out.shape)
+        out = out.view(out.shape[0], -1, 3)
+        return out, probs
 
 
 if __name__ == '__main__':
@@ -175,8 +132,7 @@ if __name__ == '__main__':
 
     ###########################################
 
-    vae = VariationalAutoEncoder(n_bins=5, dev="cpu", voxel_sample=20, cf_coeff=1.,
-                                 threshold=0.01, rc_coeff=1., bce_coeff=1., regular_method="abs")
+    vae = VariationalAutoEncoder(n_bins=5, dev="cpu", voxel_sample=20, threshold=0.01, regular_method="abs")
 
     vae_out, probs_out = vae(x_partial.transpose(2, 1))
 
