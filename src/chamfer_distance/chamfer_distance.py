@@ -104,12 +104,24 @@ def chamfer_distance_with_batch(p1, p2, debug):
         print('dist size is {}'.format(dist.size()))
         print(dist)
 
-    dist = torch.sum(dist)
+    dist = torch.mean(dist)
     if debug:
         print('-------')
         print(dist)
 
     return dist
+
+
+def chamfer_distance_with_batch_v2(a, b):
+    """
+    a: (b, p, 3)
+    b: (b, p, 3)
+    """
+    diff = a[:, :, None, :] - b[:, None, :, :]
+    dist = torch.norm(diff, p=2, dim=3)
+    d_min, _ = dist.min(2)
+    ch_dist = d_min.mean()
+    return ch_dist
 
 
 if __name__ == '__main__':
