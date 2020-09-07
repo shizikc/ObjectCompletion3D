@@ -58,7 +58,9 @@ class VariationalAutoEncoder(nn.Module):
         self.regular_method = regular_method
 
         self.voxel_centers = get_voxel_centers(self.n_bins).to(dev)
+        self.centers = None
         self.voxel_radius = 1 / self.n_bins
+
 
         self.encoder = Encoder(num_features=7 * self.num_voxels).float()
         # self.apply(self._init_weights)
@@ -81,10 +83,12 @@ class VariationalAutoEncoder(nn.Module):
 
         vector_size = (1, self.num_voxels, self.num_sample_cube, 3)
 
+        self.centers = self.voxel_centers.view(-1, 1, 3) + centers[:, :, None, :]
+
         # sample random standard
         eps = torch.randn(vector_size).to(self.dev)
-        eps *= self.voxel_radius * torch.nn.functional.sigmoid(sigma[:, :, None, :]) * 0.1  # .view(-1, 1, 3)
-        eps += self.voxel_centers.view(-1, 1, 3) + centers[:, :, None, :]
+        eps *= self.voxel_radius * torch.sigmoid(sigma[:, :, None, :]) * 0.1  # .view(-1, 1, 3)
+        eps += self.centers
 
         return eps
 
@@ -97,7 +101,8 @@ class VariationalAutoEncoder(nn.Module):
 
         s = self.encoder(x)
 
-        probs, mu, sigma = torch.split_with_sizes(s, tuple(torch.tensor([1, 3, 3]) * self.num_voxels), axis=1)
+        probs, mu, sigma = torch.split_with_sizes(s,
+                                                  tuple(torch.tensor([1, 3, 3]) * self.num_voxels), axis=1)
 
         if not pred_pc:
             out = None

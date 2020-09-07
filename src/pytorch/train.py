@@ -10,7 +10,8 @@ import torch.optim as opt
 from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch_v2
 from src.dataset.shapeDiff import ShapeDiffDataset
 from src.pytorch.vae import VariationalAutoEncoder
-from src.pytorch.visualization import plot_pc_mayavi
+
+# from src.pytorch.visualization import plot_pc_mayavi
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                     level=logging.INFO,
@@ -20,21 +21,20 @@ parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--model_path',
                     default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
-# default='/home/coopers/models/')
+                    # default='/home/coopers/models/')
 parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
-# default='/home/coopers/data/chair/')
-parser.add_argument('--max_epoch', type=int, default=200, help='Epoch to run [default: 100]')
-parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
+                    # default='/home/coopers/data/train/gt/')
+parser.add_argument('--max_epoch', type=int, default=3000, help='Epoch to run [default: 100]')
+parser.add_argument('--bins', type=int, default=15, help='resolution of main cube [default: 10]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 1]')
 parser.add_argument('--object_id', default='04256520', help='object id = sub folder name [default: 03001627 (chair)]')
 parser.add_argument('--regular_method', default='abs')
-parser.add_argument('--threshold', default=0.1, help='cube probability threshold')
+parser.add_argument('--threshold', default=0.01, help='cube probability threshold')
 parser.add_argument('--cf_coeff', default=1)
 parser.add_argument('--bce_coeff', default=1)
-parser.add_argument('--rc_coeff', default=0.01)
 parser.add_argument('--reg_start_iter', default=100)
 args = parser.parse_args(["@args.txt"])
 
@@ -48,11 +48,11 @@ threshold = args.threshold
 object_id = args.object_id
 model_path = args.model_path + "model_" + str(object_id) + "_" + str(threshold) + ".pt"
 train_path = Path(args.train_path, object_id)
-val_path = args.train_path.replace('train', 'val')
+val_path = Path(args.train_path.replace('train', 'val'), object_id)
 cd_coeff = args.cf_coeff
-rc_coeff = args.rc_coeff
 bce_coeff = args.bce_coeff
 regular_method = args.regular_method
+batch_size = args.batch_size
 
 # Prepare the Data
 if args.train:
@@ -67,6 +67,7 @@ if args.eval:
 
 loss_capture = collections.defaultdict(list)
 bce_loss = nn.BCELoss(reduction='mean')
+
 
 # Define the Model
 def get_model():
@@ -93,20 +94,16 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     train_reg = idx >= args.reg_start_iter
     diff_pred, probs_pred = mdl(input, pred_pc=train_reg)
 
-    # mask = (prob_target > 0).float()
-
-    # loss = args.bce_coeff * bce_loss(probs_pred, prob_target)
     pred_loss = bce_loss(probs_pred, prob_target)
-    # total_loss = pred_loss + 0.
     acc = ((probs_pred > 0.5) == prob_target).float().mean()
+    if idx == 500:
+        pass
     if train_reg:
         if diff_pred.shape[1] == 0:
             logging.info("Found partial with no positive probability cubes: " + str(diff_pred.shape))
             CD = torch.tensor(0.)
         else:
             CD = chamfer_distance_with_batch_v2(diff_pred.reshape(diff_pred.shape[0], -1, 3), x_diff_target)
-            # CD = chamfer_distance_with_batch_v2(x_diff_target, diff_pred.reshape(diff_pred.shape[0], -1, 3))
-
         c_loss = CD
     else:
         c_loss = torch.tensor(0.)
@@ -119,7 +116,6 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
         opt.step()
         opt.zero_grad()
 
-    # return loss.item(), acc.item() # , input.shape[0]
     d = {'total_loss': total_loss,
          'pred_loss': pred_loss,
          'c_loss': c_loss,
@@ -129,44 +125,49 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
 
 def fit(epochs, model, op):
     x, d, h = next(iter(train_loader))
-
     for epoch in range(epochs):
+        metrics = collections.defaultdict(lambda: 0.)
         model.train()
+        # for x, d, h in train_loader:
         metrics = loss_batch(mdl=model,
-                          input=x.transpose(2, 1),
-                          prob_target=h.flatten(),
-                          x_diff_target=d,
-                          opt=op,
-                          idx=epoch)
+                                 input=x.transpose(2, 1),
+                                 prob_target=h.flatten(),
+                                 x_diff_target=d,
+                                 opt=op,
+                                 idx=epoch)
 
-        # losses, nums = zip(
-        #     *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, opt=op, idx=i)
-        #       for i, (x, d, h) in enumerate(train_loader)]
-        # )
-        # train_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
-        metrics['epoch'] = epoch
-        logging.info("Epoch : %(epoch)3d, total loss : %(total_loss)5.4f, pred_loss: %(pred_loss).4f, c_loss: %("
-                     "c_loss).3f accuracy : %(acc).4f" % metrics)
+            # metrics = {k: metrics[k] + tmp_metrics[k] for k in tmp_metrics.keys()}
+
+        # metrics = {k: metrics[k] / len(train_dataset) for k in metrics.keys()}
+        metrics["epoch"] = epoch
+        logging.info(
+            "Epoch : %(epoch)3d, (Train) total loss : %(total_loss)5.4f, pred_loss: %(pred_loss).4f, c_loss: %("
+            "c_loss).3f accuracy : %(acc).4f" % metrics)
 
         # model.eval()
-        # with torch.no_grad():
-        #     losses, nums = zip(
-        #         *[loss_batch(mdl=model, input=x.transpose(2, 1), prob_target=h.flatten(), x_diff_target=d, idx=i)
-        #           for i, (x, d, h) in enumerate(val_loader)]
-        #     )
+        # metrics = collections.defaultdict(lambda: 0.)
+        # for x, d, h in val_loader:
+        #     with torch.no_grad():
+        #         tmp_metrics = loss_batch(mdl=model,
+        #                                  input=x.transpose(2, 1),
+        #                                  prob_target=h.flatten(),
+        #                                  x_diff_target=d,
+        #                                  idx=epoch)
+        #         metrics = {k: metrics[k] + tmp_metrics[k] for k in tmp_metrics.keys()}
+        # metrics = {k: metrics[k] / len(train_dataset) for k in metrics.keys()}
+        # metrics["epoch"] = epoch
         #
-        # val_loss = np.sum(np.multiply(losses, nums)) / np.sum(nums)
-        # logging.info("Epoch : % 3d, Validation error : % 5.5f" % (epoch, val_loss))
+        # logging.info("Epoch : %(epoch)3d, (Val) total loss : %(total_loss)5.4f, pred_loss: %(pred_loss).4f, c_loss: "
+        #              "%(""c_loss).3f accuracy : %(acc).4f" % metrics)
 
-        # if epoch == 0:
-        #     min_loss = loss
-        #
-        # if loss <= min_loss:
-        #     min_loss = loss
-        #     # temporary save model
-        #     torch.save(model.state_dict(), model_path)
+        if epoch == 0:
+            min_loss = metrics['total_loss']
 
-    return x
+        if metrics['total_loss'] <= min_loss:
+            min_loss = metrics['total_loss']
+
+            # temporary save model
+            torch.save(model.state_dict(), model_path)
 
 
 if __name__ == '__main__':
@@ -176,9 +177,9 @@ if __name__ == '__main__':
         model, opt = get_model()
 
         # train model
-        x = fit(args.max_epoch, model, opt)
+        fit(args.max_epoch, model, opt)
         # plot centers
-        pred = model(x.transpose(1, 2), pred_pc=True)
-        plot_pc_mayavi([pred[0].detach().numpy(), x], colors=((1., 1., 1.), (0., 0., 1.)))
+        # pred = model(x.transpose(1, 2), pred_pc=True)
+        # plot_pc_mayavi([pred[0].detach().numpy(), x], colors=((1., 1., 1.), (0., 0., 1.)))
 
     logging.info("finish training.")
