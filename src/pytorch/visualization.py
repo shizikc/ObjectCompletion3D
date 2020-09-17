@@ -1,15 +1,7 @@
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-
+#
 import mayavi.mlab as mlab
-import numpy as np
-
-
-def plot_hist3d(hist, color=(1.0, 1.0, 1.0), lower_lim=-1, upper_lim=1, lst=None):
-    if lst is None:
-        lst = [np.linspace(lower_lim, upper_lim, 10) for i in range(3)]
-    x, y, z = np.meshgrid(lst[0], lst[1], lst[2])
-    mlab.points3d(x, y, z, hist, color=color, mode='cube')
 
 
 def convert_to_np(pc):
@@ -68,7 +60,8 @@ def plot_pc(pc_lst, colors, show=True, title=""):
         plt.show()
 
 
-def plot_pc_mayavi(pc_lst, colors, show=True):
+def plot_pc_mayavi(pc_lst, colors, handler=None, show=True):
+    mlab.figure()
     for pc, color in zip(pc_lst, colors):
         mlab.points3d(*pc.T, color=color)
     if show:
