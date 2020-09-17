@@ -30,6 +30,7 @@ parser.add_argument('--train_path',
                     default='/home/coopers/data/train/gt/')
 parser.add_argument('--max_epoch', type=int, default=500, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=15, help='resolution of main cube [default: 10]')
+parser.add_argument('--voxel_sample', type=int, default=20, help='number of samples per voxel [default: 20]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
 parser.add_argument('--batch_size', type=int, default=1, help='Batch Size during training [default: 1]')
@@ -70,6 +71,7 @@ bce_coeff = args.bce_coeff
 batch_size = args.batch_size
 learning_rate = args.lr
 momentum = args.momentum
+voxel_sample = args.voxel_sample
 notes = args.notes
 
 def update_tracking(
@@ -103,6 +105,7 @@ update_tracking(run_id, "bce_coeff", bce_coeff)
 update_tracking(run_id, "batch_size", batch_size)
 update_tracking(run_id, "learning_rate", learning_rate)
 update_tracking(run_id, "momentum", momentum)
+update_tracking(run_id, "voxel_sample", voxel_sample)
 update_tracking(run_id, "note", notes)
 
 
@@ -111,7 +114,7 @@ update_tracking(run_id, "note", notes)
 #############
 
 def get_model():
-    vae = VariationalAutoEncoder(n_bins=bins, dev=dev, voxel_sample=20, threshold=threshold)
+    vae = VariationalAutoEncoder(n_bins=bins, dev=dev, voxel_sample=voxel_sample, threshold=threshold)
 
     return vae.to(dev), torch.optim.SGD(vae.parameters(), lr=learning_rate, momentum=momentum)
 
@@ -203,6 +206,8 @@ def fit(epochs, model, op):
             # save minimum model
             torch.save(model.state_dict(), model_path)
     # return x, d, h
+    # update matching to model loss
+    metrics['total_loss'] = min_loss
     return metrics
 
 
