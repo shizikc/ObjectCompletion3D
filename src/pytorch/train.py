@@ -39,8 +39,9 @@ parser.add_argument('--threshold', default=0.01, help='cube probability threshol
 parser.add_argument('--lr', default=0.01, help='cube probability threshold')
 parser.add_argument('--momentum', default=0.09, help='cube probability threshold')
 parser.add_argument('--cf_coeff', default=100)
+parser.add_argument('--cfc_coeff', default=100)
 parser.add_argument('--bce_coeff', default=1)
-parser.add_argument('--reg_start_iter', default=150)
+parser.add_argument('--reg_start_iter', type=int, default=150)
 
 args = parser.parse_args(["@args.txt"])
 
@@ -66,6 +67,7 @@ model_path = args.model_path + "model_" + str(run_id) + ".pt"
 train_path = Path(args.train_path, object_id)
 val_path = Path(args.train_path.replace('train', 'val'), object_id)
 cd_coeff = args.cf_coeff
+cdc_coeff = args.cfc_coeff
 bce_coeff = args.bce_coeff
 batch_size = args.batch_size
 learning_rate = args.lr
@@ -134,8 +136,8 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
             CD = chamfer_distance_with_batch_v2(diff_pred.reshape(diff_pred.shape[0], -1, 3),
                                                 x_diff_target, method="max")
             # penalty for centers in objects' missing parts
-            CD += chamfer_distance_with_batch_v2(mdl.centers, x_diff_target, method="mean")
-        c_loss = CD
+            CD2 = chamfer_distance_with_batch_v2(mdl.centers, x_diff_target, method="mean")
+        c_loss = CD + CD2
     else:
         c_loss = torch.tensor(0.)
 
@@ -219,6 +221,7 @@ if __name__ == '__main__':
     update_tracking(run_id, "threshold", threshold)
     update_tracking(run_id, "object_id", object_id)
     update_tracking(run_id, "cd_coeff", cd_coeff)
+    update_tracking(run_id, "cdc_coeff", cdc_coeff)
     update_tracking(run_id, "bce_coeff", bce_coeff)
     update_tracking(run_id, "batch_size", batch_size)
     update_tracking(run_id, "learning_rate", learning_rate)
