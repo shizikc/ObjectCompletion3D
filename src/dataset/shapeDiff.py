@@ -187,16 +187,16 @@ class ShapeDiffDataset(Dataset):
                torch.tensor(H > 0.0).to(self.dev).float()
 
 
-
-if __name__ == '__main__':
-    train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/train/gt/03001627'
-    # train_path = '/home/yonatan/data/oc3d/chair/train/gt/03001627'
-
-    shapenet = ShapeDiffDataset(train_path,
-                                bins=5,
-                                dev='cpu',
-                                partial_size=256,
-                                seed=42
-                                )
-    x_partial, x_diff, hist = shapenet[0]
-    # plot_pc_mayavi([x_partial, x_diff], colors=((1., 1., 1.), (1., 0., 0.)))
+#
+# if __name__ == '__main__':
+#     train_path = 'C:/Users/sharon/Documents/Research/data/dataset2019/shapenet/train/gt/03001627'
+#     # train_path = '/home/yonatan/data/oc3d/chair/train/gt/03001627'
+#
+#     shapenet = ShapeDiffDataset(train_path,
+#                                 bins=5,
+#                                 dev='cpu',
+#                                 partial_size=256,
+#                                 seed=42
+#                                 )
+#     x_partial, x_diff, hist = shapenet[0]
+#     # plot_pc_mayavi([x_partial, x_diff], colors=((1., 1., 1.), (1., 0., 0.)))
