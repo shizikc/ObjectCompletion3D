@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
 
-from src.dataset.shapeDiff import ShapeDiffDataset
-from src.pytorch.pointnet import PointNetCls
-from src.pytorch.pctools import get_voxel_centers
+from .pointnet import PointNetCls
+from .pctools import get_voxel_centers
 
 
 class Encoder(nn.Module):

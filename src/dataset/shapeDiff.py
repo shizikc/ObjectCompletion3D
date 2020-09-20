@@ -1,4 +1,3 @@
-import argparse
 import os
 import random
 from pathlib import Path
@@ -9,7 +8,6 @@ import torch
 from torch.utils.data import Dataset
 import numbers
 
-# from src.pytorch.visualization import plot_pc_mayavi
 
 logging.getLogger().setLevel(logging.INFO)
 

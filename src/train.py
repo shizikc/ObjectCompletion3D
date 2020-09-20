@@ -8,12 +8,10 @@ import torch
 import pandas as pd
 from datetime import datetime
 
-from src.chamfer_distance.chamfer_distance import chamfer_distance_with_batch_v2
-from src.dataset.shapeDiff import ShapeDiffDataset
-from src.pytorch.vae import VariationalAutoEncoder
+from chamfer_distance.chamfer_distance import chamfer_distance_with_batch_v2
+from dataset.shapeDiff import ShapeDiffDataset
+from pytorch.vae import VariationalAutoEncoder
 
-# from src.pytorch.visualization import plot_pc_mayavi
-# from src.pytorch.visualization import plot_pc
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                     level=logging.INFO,
