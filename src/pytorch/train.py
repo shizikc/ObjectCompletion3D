@@ -24,11 +24,11 @@ parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--notes', default='', help='Experiments notes [default: log]')
 parser.add_argument('--model_path',
                     default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
-                    # default='/home/coopers/models/')
+# default='/home/coopers/models/')
 parser.add_argument('--train_path',
                     default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
-                    # default='/home/coopers/data/train/gt/')
-parser.add_argument('--max_epoch', type=int, default=500, help='Epoch to run [default: 100]')
+# default='/home/coopers/data/train/gt/')
+parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--voxel_sample', type=int, default=20, help='number of samples per voxel [default: 20]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
@@ -77,7 +77,7 @@ notes = args.notes
 def update_tracking(
         id, field, value, csv_file="./tracking.csv",
         integer=False, digits=None, nround=6,
-        drop_broken_runs=True):
+        drop_broken_runs=False):
     """
     Tracking function for keep track of model parameters and
     CV scores. `integer` forces the value to be an int.
@@ -98,6 +98,7 @@ def update_tracking(
     df.loc[id, field] = value  # Model number is index
     df = df.round(nround)
     df.to_csv(csv_file)
+
 
 #############
 # TRAIN UTILS
@@ -130,7 +131,10 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
             logging.info("Found partial with no positive probability cubes: " + str(diff_pred.shape))
             CD = torch.tensor(0.)
         else:
-            CD = chamfer_distance_with_batch_v2(diff_pred.reshape(diff_pred.shape[0], -1, 3), x_diff_target, method="max")
+            CD = chamfer_distance_with_batch_v2(diff_pred.reshape(diff_pred.shape[0], -1, 3),
+                                                x_diff_target, method="max")
+            # penalty for centers in objects' missing parts
+            CD += chamfer_distance_with_batch_v2(mdl.centers, x_diff_target, method="mean")
         c_loss = CD
     else:
         c_loss = torch.tensor(0.)
@@ -211,7 +215,6 @@ if args.eval:
     val_loader = torch.utils.data.DataLoader(val_dataset, 1, shuffle=True)
 
 if __name__ == '__main__':
-
     update_tracking(run_id, "bins", bins)
     update_tracking(run_id, "threshold", threshold)
     update_tracking(run_id, "object_id", object_id)
