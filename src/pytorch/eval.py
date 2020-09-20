@@ -3,8 +3,8 @@ import torch
 
 # from src.pytorch.visualization import plot_pc_mayavi
 from src.dataset.shapeDiff import ShapeDiffDataset
-from src.pytorch.train import get_model, bins, batch_size, train_path, dev, threshold
-from src.pytorch.visualization import plot_pc, plot_pc_mayavi
+from src.train import get_model, bins, batch_size, train_path, dev, threshold
+from src.pytorch.visualization import plot_pc_mayavi
 
 model_path = "C:\\Users\\sharon\\Documents\\Research\\ObjectCompletion3D\\model\\model_0919_0057.pt"
 model, _ = get_model()
