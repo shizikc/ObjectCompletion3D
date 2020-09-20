@@ -63,7 +63,6 @@ threshold = args.threshold
 object_id = args.object_id
 model_path = args.model_path + "model_" + str(run_id) + ".pt"
 train_path = Path(args.train_path, object_id)
-print("*******" + train_path)
 val_path = Path(args.train_path.replace('train', 'val'), object_id)
 cd_coeff = args.cf_coeff
 cdc_coeff = args.cfc_coeff
