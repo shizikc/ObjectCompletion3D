@@ -139,7 +139,7 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     else:
         c_loss = torch.tensor(0.)
 
-    total_loss = args.bce_coeff * pred_loss + c_loss
+    total_loss = args.bce_coeff * pred_loss + cd_coeff * c_loss
 
     if opt is not None:
         # training
