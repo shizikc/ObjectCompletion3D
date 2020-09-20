@@ -23,13 +23,13 @@ parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--notes', default='', help='Experiments notes [default: log]')
 parser.add_argument('--model_path',
-                    # default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
-                    default='/home/coopers/models/')
+                    default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
+                    # default='/home/coopers/models/')
 parser.add_argument('--train_path',
-                    # default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
-                    default='/home/coopers/data/train/gt/')
+                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
+                    # default='/home/coopers/data/train/gt/')
 parser.add_argument('--max_epoch', type=int, default=500, help='Epoch to run [default: 100]')
-parser.add_argument('--bins', type=int, default=15, help='resolution of main cube [default: 10]')
+parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--voxel_sample', type=int, default=20, help='number of samples per voxel [default: 20]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
 parser.add_argument('--eval', type=int, default=1, help='1 if evaluating, 0 otherwise [default:0]')
@@ -59,7 +59,6 @@ bce_loss = nn.BCELoss(reduction='mean')
 #########################
 
 run_id = "{:%m%d_%H%M}".format(datetime.now())
-
 bins = args.bins
 threshold = args.threshold
 object_id = args.object_id
@@ -74,6 +73,7 @@ momentum = args.momentum
 voxel_sample = args.voxel_sample
 notes = args.notes
 
+
 def update_tracking(
         id, field, value, csv_file="./tracking.csv",
         integer=False, digits=None, nround=6,
@@ -87,7 +87,10 @@ def update_tracking(
     except FileNotFoundError:
         df = pd.DataFrame()
     if drop_broken_runs:
-        df = df.dropna(subset=['loss'])
+        try:
+            df = df.dropna(subset=['total_loss'])
+        except KeyError:
+            logging.warning("No loss column found  in tracking file")
     if integer:
         value = round(value)
     elif digits is not None:
@@ -95,19 +98,6 @@ def update_tracking(
     df.loc[id, field] = value  # Model number is index
     df = df.round(nround)
     df.to_csv(csv_file)
-
-
-update_tracking(run_id, "bins", bins)
-update_tracking(run_id, "threshold", threshold)
-update_tracking(run_id, "object_id", object_id)
-update_tracking(run_id, "cd_coeff", cd_coeff)
-update_tracking(run_id, "bce_coeff", bce_coeff)
-update_tracking(run_id, "batch_size", batch_size)
-update_tracking(run_id, "learning_rate", learning_rate)
-update_tracking(run_id, "momentum", momentum)
-update_tracking(run_id, "voxel_sample", voxel_sample)
-update_tracking(run_id, "note", notes)
-
 
 #############
 # TRAIN UTILS
@@ -140,7 +130,7 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
             logging.info("Found partial with no positive probability cubes: " + str(diff_pred.shape))
             CD = torch.tensor(0.)
         else:
-            CD = chamfer_distance_with_batch_v2(diff_pred.reshape(diff_pred.shape[0], -1, 3), x_diff_target)
+            CD = chamfer_distance_with_batch_v2(diff_pred.reshape(diff_pred.shape[0], -1, 3), x_diff_target, method="max")
         c_loss = CD
     else:
         c_loss = torch.tensor(0.)
@@ -222,17 +212,29 @@ if args.eval:
 
 if __name__ == '__main__':
 
-    if args.train:
-        # run model
-        model, opt = get_model()
+    update_tracking(run_id, "bins", bins)
+    update_tracking(run_id, "threshold", threshold)
+    update_tracking(run_id, "object_id", object_id)
+    update_tracking(run_id, "cd_coeff", cd_coeff)
+    update_tracking(run_id, "bce_coeff", bce_coeff)
+    update_tracking(run_id, "batch_size", batch_size)
+    update_tracking(run_id, "learning_rate", learning_rate)
+    update_tracking(run_id, "momentum", momentum)
+    update_tracking(run_id, "voxel_sample", voxel_sample)
+    update_tracking(run_id, "note", notes)
 
-        # train model
-        metric = fit(args.max_epoch, model, opt)
-        # plot centers
-        # pred = model(x.transpose(1, 2), pred_pc=True)
-        # plot_pc_mayavi([pred[0].detach().numpy(), x], colors=((1., 1., 1.), (0., 0., 1.)))
-        # plot_pc([d[0].cpu(), x[0].cpu()],
-        #         colors=["red", "blue", "black"])
+    # if args.train:
+    # run model
+    model, opt = get_model()
+
+    # train model
+    metric = fit(args.max_epoch, model, opt)
+    # plot centers
+    # pred = model(x.transpose(1, 2), pred_pc=True)
+    # plot_pc_mayavi([pred[0].detach().numpy(), x], colors=((1., 1., 1.), (0., 0., 1.)))
+    # plot_pc([d[0].cpu(), x[0].cpu()],
+    #         colors=["red", "blue", "black"])
 
     update_tracking(run_id, "total_loss", metric["total_loss"])
+    update_tracking(run_id, "finish_time", "{:%m%d_%H%M}".format(datetime.now()))
     logging.info("finish training.")

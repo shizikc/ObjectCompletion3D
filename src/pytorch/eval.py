@@ -3,9 +3,10 @@ import torch
 
 # from src.pytorch.visualization import plot_pc_mayavi
 from src.dataset.shapeDiff import ShapeDiffDataset
-from src.pytorch.train import model_path, get_model, bins, batch_size, train_path, dev, threshold
+from src.pytorch.train import get_model, bins, batch_size, train_path, dev, threshold
 from src.pytorch.visualization import plot_pc, plot_pc_mayavi
 
+model_path = "C:\\Users\\sharon\\Documents\\Research\\ObjectCompletion3D\\model\\model_0919_0057.pt"
 model, _ = get_model()
 model.load_state_dict(torch.load(model_path, map_location=dev))
 model.eval()
@@ -16,14 +17,16 @@ train_loader = torch.utils.data.DataLoader(train_dataset, batch_size, shuffle=Fa
 if __name__ == '__main__':
     total_acc = 0.
     for i, (x, d, h) in enumerate(train_loader):
-        if i == 10:
+        if i == 1:
             break
         pred = model(x.transpose(2, 1), pred_pc=True)
 
         # plot_pc([d[0].cpu(), pred[0].view(-1, 3).detach().numpy()], colors=["black", "red"])
-        plot_pc_mayavi([x.view(-1, 3).cpu(), pred[0].view(-1, 3).detach().numpy(), d[0].cpu()],
+        plot_pc_mayavi([pred[0].view(-1, 3).detach().numpy(), d[0].cpu()],
                        colors=((0., 0., 0.), (.9, .9, .9), (1., 0., 0.)))
         # colors=["black", "red"])
+        b = model.voxel_centers[pred[1] > threshold]
+        plot_pc_mayavi([b, d[0]], colors=((0., 1., 0.), (1., 0., 0.)))
 
         # # uniform sample from bounding box
         b_gt = h.flatten() > 0.

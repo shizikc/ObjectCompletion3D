@@ -95,6 +95,7 @@ class VariationalAutoEncoder(nn.Module):
 
             # distributing standard normal samples to voxels
             z = self._reparameterize(mu, sigma)  # torch.Size([1, n_bins**3, 20, 3])
+            print(mu)
             if target_gt is None:
                 mask = probs[0] > self.threshold  # in shape probs
             else:
