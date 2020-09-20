@@ -21,11 +21,11 @@ parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--notes', default='', help='Experiments notes [default: log]')
 parser.add_argument('--model_path',
-                    default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
-# default='/home/coopers/models/')
+                    # default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
+default='/home/coopers/models/')
 parser.add_argument('--train_path',
-                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
-# default='/home/coopers/data/train/gt/')
+                    # default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
+default='/home/coopers/data/train/gt/')
 parser.add_argument('--max_epoch', type=int, default=1, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--voxel_sample', type=int, default=20, help='number of samples per voxel [default: 20]')
@@ -63,6 +63,7 @@ threshold = args.threshold
 object_id = args.object_id
 model_path = args.model_path + "model_" + str(run_id) + ".pt"
 train_path = Path(args.train_path, object_id)
+print("*******" + train_path)
 val_path = Path(args.train_path.replace('train', 'val'), object_id)
 cd_coeff = args.cf_coeff
 cdc_coeff = args.cfc_coeff
