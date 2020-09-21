@@ -134,7 +134,8 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
             CD = chamfer_distance_with_batch_v2(diff_pred.reshape(diff_pred.shape[0], -1, 3),
                                                 x_diff_target, method="max")
             # penalty for centers in objects' missing parts
-            CD2 = chamfer_distance_with_batch_v2(mdl.centers, x_diff_target, method="mean")
+            CD2 = chamfer_distance_with_batch_v2(mdl.centers.reshape(diff_pred.shape[0], -1, 3),
+                                                 x_diff_target, method="mean")
         c_loss = CD + CD2
     else:
         c_loss = torch.tensor(0.)
