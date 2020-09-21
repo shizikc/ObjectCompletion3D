@@ -21,11 +21,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--notes', default='', help='Experiments notes [default: log]')
 parser.add_argument('--model_path',
-                    default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
-# default='/home/coopers/models/')
+                    # default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
+default='/home/coopers/models/')
 parser.add_argument('--train_path',
-                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
-# default='/home/coopers/data/train/gt/')
+                    # default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
+default='/home/coopers/data/train/gt/')
 parser.add_argument('--max_epoch', type=int, default=1000, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--voxel_sample', type=int, default=20, help='number of samples per voxel [default: 20]')
@@ -140,7 +140,7 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
     else:
         c_loss = torch.tensor(0.)
 
-    total_loss = args.bce_coeff * pred_loss + cd_coeff * c_loss
+    total_loss = args.bce_coeff * pred_loss + args.cf_coeff * c_loss
 
     if opt is not None:
         # training
