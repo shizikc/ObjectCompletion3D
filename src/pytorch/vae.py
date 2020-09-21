@@ -64,11 +64,12 @@ class VariationalAutoEncoder(nn.Module):
         """
 
         vector_size = (1, self.num_voxels, self.num_sample_cube, 3)
+        self.centers = self.voxel_centers.view(-1, 1, 3) + centers[:, :, None, :]
 
         # sample random standard
         eps = torch.randn(vector_size).to(self.dev)
-        eps *= self.voxel_radius * torch.sigmoid(sigma[:, :, None, :]) * 0.1  # .view(-1, 1, 3)
-        eps += self.voxel_centers.view(-1, 1, 3) + centers[:, :, None, :]
+        eps *= self.voxel_radius * (sigma[:, :, None, :]) * 0.1  # .view(-1, 1, 3)
+        eps += self.centers
 
         return eps
 

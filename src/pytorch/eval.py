@@ -6,7 +6,7 @@ from src.dataset.shapeDiff import ShapeDiffDataset
 from src.train import get_model, bins, batch_size, train_path, dev, threshold
 from src.pytorch.visualization import plot_pc_mayavi
 
-model_path = "C:\\Users\\sharon\\Documents\\Research\\ObjectCompletion3D\\model\\model_0919_0057.pt"
+model_path = "C:\\Users\\sharon\\Documents\\Research\\ObjectCompletion3D\\model\\model_0920_1856.pt"
 model, _ = get_model()
 model.load_state_dict(torch.load(model_path, map_location=dev))
 model.eval()
@@ -17,7 +17,7 @@ train_loader = torch.utils.data.DataLoader(train_dataset, batch_size, shuffle=Fa
 if __name__ == '__main__':
     total_acc = 0.
     for i, (x, d, h) in enumerate(train_loader):
-        if i == 1:
+        if i == 10:
             break
         pred = model(x.transpose(2, 1), pred_pc=True)
 
