@@ -8,9 +8,9 @@ import torch
 import pandas as pd
 from datetime import datetime
 
-from chamfer_distance.chamfer_distance import chamfer_distance_with_batch_v2
-from dataset.shapeDiff import ShapeDiffDataset
-from pytorch.vae import VariationalAutoEncoder
+from .chamfer_distance.chamfer_distance import chamfer_distance_with_batch_v2
+from .dataset.shapeDiff import ShapeDiffDataset
+from .pytorch.vae import VariationalAutoEncoder
 
 
 logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
@@ -21,12 +21,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
 parser.add_argument('--notes', default='', help='Experiments notes [default: log]')
 parser.add_argument('--model_path',
-                    # default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
-default='/home/coopers/models/')
+                    default='C:/Users/sharon/Documents/Research/ObjectCompletion3D/model/')
+# default='/home/coopers/models/')
 parser.add_argument('--train_path',
-                    # default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
-default='/home/coopers/data/train/gt/')
-parser.add_argument('--max_epoch', type=int, default=1000, help='Epoch to run [default: 100]')
+                    default='C:\\Users\\sharon\\Documents\\Research\\data\\dataset2019\\shapenet\\train\\gt\\')
+# default='/home/coopers/data/train/gt/')
+parser.add_argument('--max_epoch', type=int, default=3000, help='Epoch to run [default: 100]')
 parser.add_argument('--bins', type=int, default=5, help='resolution of main cube [default: 10]')
 parser.add_argument('--voxel_sample', type=int, default=20, help='number of samples per voxel [default: 20]')
 parser.add_argument('--train', type=int, default=1, help='1 if training, 0 otherwise [default: 1]')
@@ -39,7 +39,7 @@ parser.add_argument('--momentum', default=0.09, help='cube probability threshold
 parser.add_argument('--cf_coeff', default=1)
 parser.add_argument('--cfc_coeff', default=1)
 parser.add_argument('--bce_coeff', default=1)
-parser.add_argument('--reg_start_iter', type=int, default=150)
+parser.add_argument('--reg_start_iter', type=int, default=3000)
 
 args = parser.parse_args()
 
@@ -110,7 +110,7 @@ def get_model():
     return vae.to(dev), torch.optim.SGD(vae.parameters(), lr=learning_rate, momentum=momentum)
 
 
-def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
+def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1, center_loss=False):
     """
 
     :param idx:
@@ -132,10 +132,13 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
             CD = torch.tensor(0.)
         else:
             CD = chamfer_distance_with_batch_v2(diff_pred.reshape(diff_pred.shape[0], -1, 3),
-                                                x_diff_target, method="max")
+                                                x_diff_target, method="mean")
             # penalty for centers in objects' missing parts
-            CD2 = chamfer_distance_with_batch_v2(mdl.centers.reshape(diff_pred.shape[0], -1, 3),
-                                                 x_diff_target, method="mean")
+            if center_loss:
+                CD2 = chamfer_distance_with_batch_v2(mdl.centers.reshape(diff_pred.shape[0], -1, 3),
+                                                     x_diff_target, method="mean")
+            else:
+                CD2 = torch.tensor(0.)
         c_loss = CD + CD2
     else:
         c_loss = torch.tensor(0.)
@@ -156,19 +159,19 @@ def loss_batch(mdl, input, prob_target, x_diff_target, opt=None, idx=1):
 
 
 def fit(epochs, model, op):
-    # x, d, h = next(iter(train_loader))
+    x, d, h = next(iter(train_loader))
     for epoch in range(epochs):
         metrics = collections.defaultdict(lambda: 0.)
         model.train()
-        for x, d, h in train_loader:
-            tmp_metrics = loss_batch(mdl=model,
-                                     input=x.transpose(2, 1),
-                                     prob_target=h.flatten(),
-                                     x_diff_target=d,
-                                     opt=op,
-                                     idx=epoch)
+        # for x, d, h in train_loader:
+        tmp_metrics = loss_batch(mdl=model,
+                                 input=x.transpose(2, 1),
+                                 prob_target=h.flatten(),
+                                 x_diff_target=d,
+                                 opt=op,
+                                 idx=epoch)
 
-            metrics = {k: metrics[k] + tmp_metrics[k] for k in tmp_metrics.keys()}
+        metrics = {k: metrics[k] + tmp_metrics[k] for k in tmp_metrics.keys()}
 
         metrics = {k: metrics[k] / len(train_dataset) for k in metrics.keys()}
         metrics["epoch"] = epoch
