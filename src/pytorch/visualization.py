@@ -60,7 +60,7 @@ def plot_pc(pc_lst, colors, show=True, title=""):
         plt.show()
 
 
-def plot_pc_mayavi(pc_lst, colors, handler=None, show=True):
+def plot_pc_mayavi(pc_lst, colors, show=True):
     mlab.figure()
     for pc, color in zip(pc_lst, colors):
         mlab.points3d(*pc.T, color=color)
